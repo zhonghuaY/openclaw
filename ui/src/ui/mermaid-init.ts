@@ -1,6 +1,9 @@
 let mermaidModule: typeof import("mermaid") | null = null;
 let initPromise: Promise<void> | null = null;
 let observerStarted = false;
+let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+const MERMAID_RENDER_DEBOUNCE_MS = 800;
 
 async function ensureMermaid() {
   if (mermaidModule) {
@@ -12,7 +15,7 @@ async function ensureMermaid() {
       mermaidModule.default.initialize({
         startOnLoad: false,
         theme: "default",
-        securityLevel: "strict",
+        securityLevel: "loose",
         fontFamily: "inherit",
       });
     })();
@@ -53,18 +56,41 @@ export async function renderMermaidDiagrams(root: HTMLElement | Document = docum
       container.setAttribute("data-mermaid", "rendered");
     } catch {
       container.setAttribute("data-mermaid", "error");
+      const errLabel = document.createElement("div");
+      errLabel.className = "mermaid-error-label";
+      errLabel.textContent = "⚠ Diagram render failed (click to toggle source)";
+      errLabel.style.cssText =
+        "font-size:12px;color:var(--text-muted,#888);cursor:pointer;padding:4px 8px;user-select:none";
+      pre.style.display = "none";
       pre.classList.add("mermaid-error");
+      errLabel.addEventListener("click", () => {
+        pre.style.display = pre.style.display === "none" ? "block" : "none";
+      });
+      container.insertBefore(errLabel, pre);
     }
   }
 }
 
+/** Debounced wrapper to avoid rendering partial mermaid during streaming */
+export function debouncedRenderMermaid() {
+  if (debounceTimer !== null) {
+    clearTimeout(debounceTimer);
+  }
+  debounceTimer = setTimeout(() => {
+    debounceTimer = null;
+    void renderMermaidDiagrams();
+  }, MERMAID_RENDER_DEBOUNCE_MS);
+}
+
 /** Start a MutationObserver to auto-render mermaid blocks added to the DOM */
 export function startMermaidObserver() {
-  if (observerStarted) return;
+  if (observerStarted) {
+    return;
+  }
   observerStarted = true;
   const observer = new MutationObserver(() => {
     if (document.querySelector('.mermaid-container[data-mermaid="pending"]')) {
-      renderMermaidDiagrams();
+      debouncedRenderMermaid();
     }
   });
   observer.observe(document.body, { childList: true, subtree: true });

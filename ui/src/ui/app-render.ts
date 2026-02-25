@@ -148,7 +148,8 @@ export function renderApp(state: AppViewState) {
     t("common.na");
   const availableUpdate =
     state.updateAvailable &&
-    state.updateAvailable.latestVersion !== state.updateAvailable.currentVersion
+    state.updateAvailable.latestVersion !== state.updateAvailable.currentVersion &&
+    localStorage.getItem("oc-update-dismissed") !== state.updateAvailable.latestVersion
       ? state.updateAvailable
       : null;
   const versionStatusClass = availableUpdate ? "warn" : "ok";
@@ -331,6 +332,14 @@ export function renderApp(state: AppViewState) {
                 ?disabled=${state.updateRunning || !state.connected}
                 @click=${() => runUpdate(state)}
               >${state.updateRunning ? "Updating…" : "Update now"}</button>
+              <button
+                class="btn btn--sm update-banner__dismiss"
+                title="Dismiss"
+                @click=${() => {
+                  localStorage.setItem("oc-update-dismissed", availableUpdate.latestVersion);
+                  state.updateAvailable = null;
+                }}
+              >✕</button>
             </div>`
             : nothing
         }

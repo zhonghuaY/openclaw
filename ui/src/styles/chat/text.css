@@ -138,9 +138,21 @@
 }
 
 .mermaid-container[data-mermaid="error"] pre.mermaid-error {
-  border: 1px solid var(--danger, #c62828);
-  color: var(--danger, #c62828);
-  background: var(--danger-subtle, rgba(198, 40, 40, 0.1));
+  border: 1px solid var(--border, #ddd);
+  color: var(--muted, #888);
+  background: var(--bg-elevated, rgba(0, 0, 0, 0.03));
+  text-align: left;
+  font-size: 0.8rem;
+  padding: 10px 12px;
+  border-radius: 6px;
+}
+
+.mermaid-error-label {
+  font-size: 12px;
+  color: var(--text-muted, #888);
+  cursor: pointer;
+  padding: 4px 8px;
+  user-select: none;
 }
 
 .mermaid-container svg {
