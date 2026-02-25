@@ -995,11 +995,7 @@ export function renderApp(state: AppViewState) {
           state.tab === "notex"
             ? html`
                 <div style="width: 100%; height: calc(100vh - var(--shell-topbar-height, 56px)); overflow: hidden">
-                  <iframe
-                    src="https://tdx-trading-view.myaddr.io:180"
-                    style="width: 100%; height: 100%; border: none"
-                    title="NoteX"
-                  ></iframe>
+                  <iframe src="/notex/" style="width: 100%; height: 100%; border: none" title="NoteX"></iframe>
                 </div>
               `
             : nothing

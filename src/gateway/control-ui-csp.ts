@@ -11,6 +11,6 @@ export function buildControlUiCspHeader(): string {
     "img-src 'self' data: https:",
     "font-src 'self' https:",
     "connect-src 'self' ws: wss:",
-    "frame-src https://tdx-trading-view.myaddr.io:180",
+    "frame-src 'self'",
   ].join("; ");
 }
