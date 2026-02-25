@@ -354,6 +354,10 @@ export function setTabFromRoute(host: SettingsHost, next: Tab) {
   }
   if (next === "chat") {
     host.chatHasAutoScrolled = false;
+    // Auto-collapse nav on mobile chat so overlay starts hidden
+    if (typeof window !== "undefined" && window.innerWidth <= 600 && !host.settings.navCollapsed) {
+      applySettings(host, { ...host.settings, navCollapsed: true });
+    }
   }
   if (next === "logs") {
     startLogsPolling(host as unknown as Parameters<typeof startLogsPolling>[0]);

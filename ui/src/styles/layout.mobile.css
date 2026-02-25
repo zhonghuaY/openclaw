@@ -100,6 +100,9 @@
     gap: 4px;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
+    max-height: 44px;
+    overflow-x: auto;
+    overflow-y: hidden;
   }
 
   .nav::-webkit-scrollbar {
@@ -122,6 +125,69 @@
     flex-shrink: 0;
   }
 
+  /* On mobile chat, nav is an overlay toggled by hamburger.
+     Default (navCollapsed=false → no nav--collapsed class) = overlay visible.
+     navCollapsed=true → nav--collapsed class → overlay hidden. */
+  .shell--chat .nav {
+    position: fixed;
+    top: 48px;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    max-height: 60vh;
+    overflow-y: auto;
+    overflow-x: hidden;
+    flex-wrap: wrap;
+    padding: 10px;
+    gap: 6px;
+  }
+
+  .shell--chat .nav.nav--collapsed {
+    display: none;
+  }
+
+  /* Session sidebar: single horizontal scroll row */
+  .session-sidebar {
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    max-height: 48px;
+    gap: 4px;
+    padding: 4px;
+    scrollbar-width: none;
+  }
+
+  .session-sidebar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .session-sidebar__new-btn {
+    padding: 6px 10px;
+    font-size: 12px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    min-height: 36px;
+  }
+
+  .session-sidebar__search {
+    display: none;
+  }
+
+  .session-sidebar__item {
+    padding: 6px 10px;
+    font-size: 12px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    min-height: 36px;
+  }
+
+  .session-sidebar__item-meta {
+    display: none;
+  }
+
   /* Content */
   .content-header {
     display: none;
@@ -130,6 +196,21 @@
   .content {
     padding: 4px 4px 16px;
     gap: 12px;
+  }
+
+  /* Update banner */
+  .update-banner {
+    font-size: 11px;
+    padding: 6px 8px;
+    gap: 4px;
+  }
+
+  .update-banner strong {
+    flex-shrink: 0;
+  }
+
+  .update-banner__dismiss {
+    flex-shrink: 0;
   }
 
   /* Cards */
@@ -229,14 +310,36 @@
   }
 
   .chat-compose {
-    gap: 8px;
+    gap: 6px;
+    padding: 8px 4px 4px;
+  }
+
+  .chat-compose__row {
+    flex-direction: column;
+    gap: 6px;
   }
 
   .chat-compose__field textarea {
-    min-height: 60px;
+    min-height: 40px;
     padding: 8px 10px;
     border-radius: var(--radius-md);
     font-size: 14px;
+  }
+
+  .chat-compose__actions {
+    gap: 4px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-self: stretch;
+  }
+
+  .chat-compose .chat-compose__actions .btn {
+    padding: 0 10px;
+    font-size: 12px;
+    height: 36px;
+    min-height: 36px;
+    max-height: 36px;
+    flex: 1;
   }
 
   /* Log stream */
