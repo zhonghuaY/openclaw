@@ -6,7 +6,7 @@ import { syncUrlWithSessionKey } from "./app-settings.ts";
 import type { AppViewState } from "./app-view-state.ts";
 import { OpenClawApp } from "./app.ts";
 import { ChatState, loadChatHistory } from "./controllers/chat.ts";
-import { deleteSessionAndRefresh, patchSession } from "./controllers/sessions.ts";
+import { loadSessions, patchSession } from "./controllers/sessions.ts";
 import { icons } from "./icons.ts";
 import { iconForTab, pathForTab, titleForTab, type Tab } from "./navigation.ts";
 import type { ThemeTransitionContext } from "./theme-transition.ts";
@@ -625,12 +625,42 @@ export function renderSessionSidebar(state: AppViewState) {
   };
 
   const onDeleteSession = async (key: string) => {
-    const deleted = await deleteSessionAndRefresh(
-      state as unknown as Parameters<typeof deleteSessionAndRefresh>[0],
-      key,
+    const confirmed = window.confirm(
+      `Delete session "${key}"?\n\nThis will remove the session from the sidebar.`,
     );
-    if (deleted && state.sessionKey === key) {
+    if (!confirmed) {
+      return;
+    }
+
+    // Try server-side delete first
+    let serverDeleted = false;
+    try {
+      if (state.client && state.connected) {
+        await (
+          state.client as { request: (method: string, params: unknown) => Promise<unknown> }
+        ).request("sessions.delete", { key, deleteTranscript: true });
+        serverDeleted = true;
+      }
+    } catch {
+      // Webchat clients may not be allowed to delete — fall through to local removal
+    }
+
+    // Always remove from local sidebar list
+    if (state.sessionsResult) {
+      state.sessionsResult = {
+        ...state.sessionsResult,
+        sessions: state.sessionsResult.sessions.filter((s) => s.key !== key),
+        count: Math.max(0, state.sessionsResult.count - 1),
+      };
+    }
+
+    if (state.sessionKey === key) {
       onSelectSession(mainSessionKey);
+    }
+
+    // Refresh from server if delete succeeded
+    if (serverDeleted) {
+      void loadSessions(state as unknown as Parameters<typeof loadSessions>[0]);
     }
   };
 
