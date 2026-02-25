@@ -6,7 +6,7 @@ import { syncUrlWithSessionKey } from "./app-settings.ts";
 import type { AppViewState } from "./app-view-state.ts";
 import { OpenClawApp } from "./app.ts";
 import { ChatState, loadChatHistory } from "./controllers/chat.ts";
-import { deleteSessionAndRefresh } from "./controllers/sessions.ts";
+import { deleteSessionAndRefresh, patchSession } from "./controllers/sessions.ts";
 import { icons } from "./icons.ts";
 import { iconForTab, pathForTab, titleForTab, type Tab } from "./navigation.ts";
 import type { ThemeTransitionContext } from "./theme-transition.ts";
@@ -581,6 +581,46 @@ export function renderSessionSidebar(state: AppViewState) {
     }
   };
 
+  const onRenameSession = (key: string, el: HTMLElement) => {
+    const nameSpan = el
+      .closest(".session-sidebar__item")
+      ?.querySelector(".session-sidebar__item-name") as HTMLElement | null;
+    if (!nameSpan) {
+      return;
+    }
+    const currentName = nameSpan.textContent?.trim() ?? "";
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "session-sidebar__rename-input";
+    input.value = currentName;
+    nameSpan.replaceWith(input);
+    input.focus();
+    input.select();
+    const commit = () => {
+      const newName = input.value.trim();
+      if (newName && newName !== currentName) {
+        void patchSession(state as unknown as Parameters<typeof patchSession>[0], key, {
+          displayName: newName,
+        });
+      }
+      input.replaceWith(nameSpan);
+      if (newName) {
+        nameSpan.textContent = newName;
+      }
+    };
+    input.addEventListener("blur", commit, { once: true });
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        input.blur();
+      }
+      if (e.key === "Escape") {
+        input.removeEventListener("blur", commit);
+        input.replaceWith(nameSpan);
+      }
+    });
+  };
+
   return html`
     <div class="session-sidebar">
       <button class="session-sidebar__new-btn" @click=${onNewSession} title="New chat session">
@@ -608,7 +648,10 @@ export function renderSessionSidebar(state: AppViewState) {
                   >
                     <div class="session-sidebar__item-content">
                       <span class="session-sidebar__item-icon">${icons.messageSquare}</span>
-                      <span class="session-sidebar__item-name">${displayName}</span>
+                      <span class="session-sidebar__item-name" @dblclick=${(e: Event) => {
+                        e.stopPropagation();
+                        onRenameSession(s.key, e.target as HTMLElement);
+                      }}>${displayName}</span>
                     </div>
                     <div class="session-sidebar__item-meta">
                       <span class="session-sidebar__item-time">${timeLabel}</span>

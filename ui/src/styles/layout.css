@@ -670,6 +670,20 @@
   overflow: hidden;
   text-overflow: ellipsis;
   color: var(--text);
+  cursor: text;
+}
+
+.session-sidebar__rename-input {
+  font-size: 0.8125rem;
+  line-height: 1.3;
+  width: 100%;
+  padding: 1px 4px;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  background: var(--surface, #1e1e1e);
+  color: var(--text);
+  outline: none;
+  font-family: inherit;
 }
 
 .session-sidebar__item--active .session-sidebar__item-name {

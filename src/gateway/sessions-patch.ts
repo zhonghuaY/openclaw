@@ -150,6 +150,15 @@ export async function applySessionsPatchToStore(params: {
     }
   }
 
+  if ("displayName" in patch) {
+    const raw = patch.displayName;
+    if (raw === null) {
+      delete next.displayName;
+    } else if (raw !== undefined) {
+      next.displayName = String(raw).trim().slice(0, 100);
+    }
+  }
+
   if ("thinkingLevel" in patch) {
     const raw = patch.thinkingLevel;
     if (raw === null) {
