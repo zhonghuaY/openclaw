@@ -1,4 +1,4 @@
-import { html } from "lit";
+import { html, nothing } from "lit";
 import { repeat } from "lit/directives/repeat.js";
 import { t } from "../i18n/index.ts";
 import { refreshChat } from "./app-chat.ts";
@@ -6,6 +6,7 @@ import { syncUrlWithSessionKey } from "./app-settings.ts";
 import type { AppViewState } from "./app-view-state.ts";
 import { OpenClawApp } from "./app.ts";
 import { ChatState, loadChatHistory } from "./controllers/chat.ts";
+import { deleteSessionAndRefresh } from "./controllers/sessions.ts";
 import { icons } from "./icons.ts";
 import { iconForTab, pathForTab, titleForTab, type Tab } from "./navigation.ts";
 import type { ThemeTransitionContext } from "./theme-transition.ts";
@@ -477,5 +478,159 @@ function renderMonitorIcon() {
       <line x1="8" x2="16" y1="21" y2="21"></line>
       <line x1="12" x2="12" y1="17" y2="21"></line>
     </svg>
+  `;
+}
+
+/* ── Session sidebar (ChatGPT-style) ──────────────────── */
+
+function formatSessionTime(ts: number | null): string {
+  if (!ts) {
+    return "";
+  }
+  const d = new Date(ts);
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffMin = Math.floor(diffMs / 60_000);
+  if (diffMin < 1) {
+    return "just now";
+  }
+  if (diffMin < 60) {
+    return `${diffMin}m ago`;
+  }
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) {
+    return `${diffHr}h ago`;
+  }
+  const diffDay = Math.floor(diffHr / 24);
+  if (diffDay < 7) {
+    return `${diffDay}d ago`;
+  }
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+const plusIcon = html`
+  <svg
+    width="16"
+    height="16"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <line x1="12" y1="5" x2="12" y2="19"></line>
+    <line x1="5" y1="12" x2="19" y2="12"></line>
+  </svg>
+`;
+
+const trashIcon = html`
+  <svg
+    width="14"
+    height="14"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <polyline points="3 6 5 6 21 6"></polyline>
+    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+  </svg>
+`;
+
+export function renderSessionSidebar(state: AppViewState) {
+  const sessions = state.sessionsResult?.sessions ?? [];
+  const sorted = [...sessions].toSorted((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
+  const mainSessionKey = resolveMainSessionKey(state.hello, state.sessionsResult) ?? "main";
+
+  const onNewSession = () => {
+    const key = `chat-${Date.now()}`;
+    resetChatStateForSessionSwitch(state, key);
+    void state.loadAssistantIdentity();
+    syncUrlWithSessionKey(
+      state as unknown as Parameters<typeof syncUrlWithSessionKey>[0],
+      key,
+      true,
+    );
+    void loadChatHistory(state as unknown as ChatState);
+  };
+
+  const onSelectSession = (key: string) => {
+    if (key === state.sessionKey) {
+      return;
+    }
+    resetChatStateForSessionSwitch(state, key);
+    void state.loadAssistantIdentity();
+    syncUrlWithSessionKey(
+      state as unknown as Parameters<typeof syncUrlWithSessionKey>[0],
+      key,
+      true,
+    );
+    void loadChatHistory(state as unknown as ChatState);
+  };
+
+  const onDeleteSession = async (key: string) => {
+    const deleted = await deleteSessionAndRefresh(
+      state as unknown as Parameters<typeof deleteSessionAndRefresh>[0],
+      key,
+    );
+    if (deleted && state.sessionKey === key) {
+      onSelectSession(mainSessionKey);
+    }
+  };
+
+  return html`
+    <div class="session-sidebar">
+      <button class="session-sidebar__new-btn" @click=${onNewSession} title="New chat session">
+        ${plusIcon}
+        <span>New Chat</span>
+      </button>
+      <div class="session-sidebar__list">
+        ${
+          sorted.length === 0
+            ? html`
+                <div class="session-sidebar__empty">No sessions yet</div>
+              `
+            : repeat(
+                sorted,
+                (s) => s.key,
+                (s) => {
+                  const isActive = s.key === state.sessionKey;
+                  const displayName = resolveSessionDisplayName(s.key, s);
+                  const timeLabel = formatSessionTime(s.updatedAt);
+                  return html`
+                  <div
+                    class="session-sidebar__item ${isActive ? "session-sidebar__item--active" : ""}"
+                    @click=${() => onSelectSession(s.key)}
+                    title=${s.key}
+                  >
+                    <div class="session-sidebar__item-content">
+                      <span class="session-sidebar__item-icon">${icons.messageSquare}</span>
+                      <span class="session-sidebar__item-name">${displayName}</span>
+                    </div>
+                    <div class="session-sidebar__item-meta">
+                      <span class="session-sidebar__item-time">${timeLabel}</span>
+                      ${
+                        s.key !== mainSessionKey
+                          ? html`<button
+                            class="session-sidebar__item-delete"
+                            @click=${(e: Event) => {
+                              e.stopPropagation();
+                              void onDeleteSession(s.key);
+                            }}
+                            title="Delete session"
+                          >${trashIcon}</button>`
+                          : nothing
+                      }
+                    </div>
+                  </div>
+                `;
+                },
+              )
+        }
+      </div>
+    </div>
   `;
 }

@@ -3,7 +3,12 @@ import { parseAgentSessionKey } from "../../../src/routing/session-key.js";
 import { t } from "../i18n/index.ts";
 import { refreshChatAvatar } from "./app-chat.ts";
 import { renderUsageTab } from "./app-render-usage-tab.ts";
-import { renderChatControls, renderTab, renderThemeToggle } from "./app-render.helpers.ts";
+import {
+  renderChatControls,
+  renderSessionSidebar,
+  renderTab,
+  renderThemeToggle,
+} from "./app-render.helpers.ts";
 import type { AppViewState } from "./app-view-state.ts";
 import { loadAgentFileContent, loadAgentFiles, saveAgentFile } from "./controllers/agent-files.ts";
 import { loadAgentIdentities, loadAgentIdentity } from "./controllers/agent-identity.ts";
@@ -256,32 +261,47 @@ export function renderApp(state: AppViewState) {
         </div>
       </header>
       <aside class="nav ${state.settings.navCollapsed ? "nav--collapsed" : ""}">
-        ${TAB_GROUPS.map((group) => {
-          const isGroupCollapsed = state.settings.navGroupsCollapsed[group.label] ?? false;
-          const hasActiveTab = group.tabs.some((tab) => tab === state.tab);
-          return html`
-            <div class="nav-group ${isGroupCollapsed && !hasActiveTab ? "nav-group--collapsed" : ""}">
-              <button
-                class="nav-label"
-                @click=${() => {
-                  const next = { ...state.settings.navGroupsCollapsed };
-                  next[group.label] = !isGroupCollapsed;
-                  state.applySettings({
-                    ...state.settings,
-                    navGroupsCollapsed: next,
-                  });
-                }}
-                aria-expanded=${!isGroupCollapsed}
-              >
-                <span class="nav-label__text">${t(`nav.${group.label}`)}</span>
-                <span class="nav-label__chevron">${isGroupCollapsed ? "+" : "−"}</span>
-              </button>
+        ${
+          isChat
+            ? html`
+            ${renderSessionSidebar(state)}
+            <div class="nav-group nav-group--back-to-nav">
               <div class="nav-group__items">
-                ${group.tabs.map((tab) => renderTab(state, tab))}
+                ${TAB_GROUPS.map((group) =>
+                  group.tabs.map((tab) => (tab !== "chat" ? renderTab(state, tab) : nothing)),
+                )}
               </div>
             </div>
-          `;
-        })}
+          `
+            : html`
+            ${TAB_GROUPS.map((group) => {
+              const isGroupCollapsed = state.settings.navGroupsCollapsed[group.label] ?? false;
+              const hasActiveTab = group.tabs.some((tab) => tab === state.tab);
+              return html`
+                <div class="nav-group ${isGroupCollapsed && !hasActiveTab ? "nav-group--collapsed" : ""}">
+                  <button
+                    class="nav-label"
+                    @click=${() => {
+                      const next = { ...state.settings.navGroupsCollapsed };
+                      next[group.label] = !isGroupCollapsed;
+                      state.applySettings({
+                        ...state.settings,
+                        navGroupsCollapsed: next,
+                      });
+                    }}
+                    aria-expanded=${!isGroupCollapsed}
+                  >
+                    <span class="nav-label__text">${t(`nav.${group.label}`)}</span>
+                    <span class="nav-label__chevron">${isGroupCollapsed ? "+" : "−"}</span>
+                  </button>
+                  <div class="nav-group__items">
+                    ${group.tabs.map((tab) => renderTab(state, tab))}
+                  </div>
+                </div>
+              `;
+            })}
+          `
+        }
         <div class="nav-group nav-group--links">
           <div class="nav-label nav-label--static">
             <span class="nav-label__text">${t("common.resources")}</span>
@@ -316,8 +336,8 @@ export function renderApp(state: AppViewState) {
         }
         <section class="content-header">
           <div>
-            ${state.tab === "usage" ? nothing : html`<div class="page-title">${titleForTab(state.tab)}</div>`}
-            ${state.tab === "usage" ? nothing : html`<div class="page-sub">${subtitleForTab(state.tab)}</div>`}
+            ${state.tab === "usage" || state.tab === "notex" ? nothing : html`<div class="page-title">${titleForTab(state.tab)}</div>`}
+            ${state.tab === "usage" || state.tab === "notex" ? nothing : html`<div class="page-sub">${subtitleForTab(state.tab)}</div>`}
           </div>
           <div class="page-meta">
             ${state.lastError ? html`<div class="pill danger">${state.lastError}</div>` : nothing}
@@ -968,6 +988,20 @@ export function renderApp(state: AppViewState) {
                   return saveExecApprovals(state, target);
                 },
               })
+            : nothing
+        }
+
+        ${
+          state.tab === "notex"
+            ? html`
+                <div style="width: 100%; height: calc(100vh - var(--shell-topbar-height, 56px)); overflow: hidden">
+                  <iframe
+                    src="https://tdx-trading-view.myaddr.io:180"
+                    style="width: 100%; height: 100%; border: none"
+                    title="NoteX"
+                  ></iframe>
+                </div>
+              `
             : nothing
         }
 

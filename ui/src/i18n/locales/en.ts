@@ -15,6 +15,7 @@ export const en: TranslationMap = {
     resources: "Resources",
   },
   nav: {
+    tools: "Tools",
     chat: "Chat",
     control: "Control",
     agent: "Agent",
@@ -23,6 +24,7 @@ export const en: TranslationMap = {
     collapse: "Collapse sidebar",
   },
   tabs: {
+    notex: "NoteX",
     agents: "Agents",
     overview: "Overview",
     channels: "Channels",
@@ -38,6 +40,7 @@ export const en: TranslationMap = {
     logs: "Logs",
   },
   subtitles: {
+    notex: "Embedded NoteX workspace",
     agents: "Manage agent workspaces, tools, and identities.",
     overview: "Gateway status, entry points, and a fast health read.",
     channels: "Manage channels and settings.",

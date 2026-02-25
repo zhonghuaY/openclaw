@@ -15,6 +15,7 @@ export const pt_BR: TranslationMap = {
     resources: "Recursos",
   },
   nav: {
+    tools: "Ferramentas",
     chat: "Chat",
     control: "Controle",
     agent: "Agente",
@@ -23,6 +24,7 @@ export const pt_BR: TranslationMap = {
     collapse: "Recolher barra lateral",
   },
   tabs: {
+    notex: "NoteX",
     agents: "Agentes",
     overview: "Visão Geral",
     channels: "Canais",
@@ -38,6 +40,7 @@ export const pt_BR: TranslationMap = {
     logs: "Logs",
   },
   subtitles: {
+    notex: "Espaço de trabalho NoteX incorporado",
     agents: "Gerenciar espaços de trabalho, ferramentas e identidades de agentes.",
     overview: "Status do gateway, pontos de entrada e leitura rápida de saúde.",
     channels: "Gerenciar canais e configurações.",

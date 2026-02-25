@@ -15,6 +15,7 @@ export const zh_CN: TranslationMap = {
     resources: "资源",
   },
   nav: {
+    tools: "工具",
     chat: "聊天",
     control: "控制",
     agent: "代理",
@@ -23,6 +24,7 @@ export const zh_CN: TranslationMap = {
     collapse: "折叠侧边栏",
   },
   tabs: {
+    notex: "NoteX",
     agents: "代理",
     overview: "概览",
     channels: "频道",
@@ -38,6 +40,7 @@ export const zh_CN: TranslationMap = {
     logs: "日志",
   },
   subtitles: {
+    notex: "内嵌 NoteX 笔记工作区",
     agents: "管理代理工作区、工具和身份。",
     overview: "网关状态、入口点和快速健康读取。",
     channels: "管理频道和设置。",

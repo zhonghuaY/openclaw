@@ -206,6 +206,8 @@
     padding var(--shell-focus-duration) var(--shell-focus-ease),
     opacity var(--shell-focus-duration) var(--shell-focus-ease);
   min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .nav::-webkit-scrollbar {
@@ -562,6 +564,167 @@
 }
 
 /* ===========================================
+   Session Sidebar (ChatGPT-style)
+   =========================================== */
+
+.session-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-height: 0;
+}
+
+.session-sidebar__new-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  flex-shrink: 0;
+}
+
+.session-sidebar__new-btn:hover {
+  background: var(--hover);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.session-sidebar__new-btn svg {
+  flex-shrink: 0;
+}
+
+.session-sidebar__list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  scrollbar-width: thin;
+}
+
+.session-sidebar__empty {
+  padding: 16px 12px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.session-sidebar__item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.12s;
+  position: relative;
+}
+
+.session-sidebar__item:hover {
+  background: var(--hover);
+}
+
+.session-sidebar__item--active {
+  background: var(--hover);
+  border-left: 3px solid var(--accent);
+  padding-left: 7px;
+}
+
+.session-sidebar__item-content {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.session-sidebar__item-icon {
+  flex-shrink: 0;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+}
+
+.session-sidebar__item-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.session-sidebar__item--active .session-sidebar__item-icon {
+  color: var(--accent);
+}
+
+.session-sidebar__item-name {
+  font-size: 0.8125rem;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text);
+}
+
+.session-sidebar__item--active .session-sidebar__item-name {
+  font-weight: 600;
+}
+
+.session-sidebar__item-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  padding-left: 20px;
+}
+
+.session-sidebar__item-time {
+  font-size: 0.6875rem;
+  color: var(--muted);
+}
+
+.session-sidebar__item-delete {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: color 0.12s, background 0.12s;
+}
+
+.session-sidebar__item:hover .session-sidebar__item-delete {
+  display: flex;
+}
+
+.session-sidebar__item-delete:hover {
+  color: var(--danger, #e55);
+  background: var(--hover);
+}
+
+.nav-group--back-to-nav {
+  margin-top: auto;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.nav-group--back-to-nav .nav-group__items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+/* ===========================================
    Responsive - Tablet
    =========================================== */
 
@@ -617,5 +780,37 @@
 
   .list-item {
     grid-template-columns: 1fr;
+  }
+
+  .session-sidebar {
+    flex-direction: row;
+    overflow-x: auto;
+    gap: 6px;
+  }
+
+  .session-sidebar__new-btn {
+    white-space: nowrap;
+    width: auto;
+    flex-shrink: 0;
+  }
+
+  .session-sidebar__list {
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    gap: 4px;
+  }
+
+  .session-sidebar__item {
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .session-sidebar__item-meta {
+    display: none;
+  }
+
+  .nav-group--back-to-nav {
+    display: none;
   }
 }

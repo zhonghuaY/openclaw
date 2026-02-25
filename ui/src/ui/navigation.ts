@@ -3,6 +3,7 @@ import type { IconName } from "./icons.js";
 
 export const TAB_GROUPS = [
   { label: "chat", tabs: ["chat"] },
+  { label: "tools", tabs: ["notex"] },
   {
     label: "control",
     tabs: ["overview", "channels", "instances", "sessions", "usage", "cron"],
@@ -22,6 +23,7 @@ export type Tab =
   | "skills"
   | "nodes"
   | "chat"
+  | "notex"
   | "config"
   | "debug"
   | "logs";
@@ -37,6 +39,7 @@ const TAB_PATHS: Record<Tab, string> = {
   skills: "/skills",
   nodes: "/nodes",
   chat: "/chat",
+  notex: "/notex",
   config: "/config",
   debug: "/debug",
   logs: "/logs",
@@ -151,6 +154,8 @@ export function iconForTab(tab: Tab): IconName {
       return "bug";
     case "logs":
       return "scrollText";
+    case "notex":
+      return "puzzle";
     default:
       return "folder";
   }
