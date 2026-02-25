@@ -250,7 +250,7 @@
 .theme-toggle__track {
   position: relative;
   display: grid;
-  grid-template-columns: repeat(3, var(--theme-item));
+  grid-template-columns: repeat(4, var(--theme-item));
   gap: var(--theme-gap);
   padding: var(--theme-pad);
   border-radius: var(--radius-full);

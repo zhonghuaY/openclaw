@@ -265,7 +265,7 @@ export function inferBasePath() {
 }
 
 export function syncThemeWithSettings(host: SettingsHost) {
-  host.theme = host.settings.theme ?? "system";
+  host.theme = host.settings.theme ?? "muhuotongming";
   applyResolvedTheme(host, resolveTheme(host.theme));
 }
 
@@ -276,7 +276,7 @@ export function applyResolvedTheme(host: SettingsHost, resolved: ResolvedTheme) 
   }
   const root = document.documentElement;
   root.dataset.theme = resolved;
-  root.style.colorScheme = resolved;
+  root.style.colorScheme = resolved.includes("dark") ? "dark" : "light";
 }
 
 export function attachThemeListener(host: SettingsHost) {

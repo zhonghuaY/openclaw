@@ -9,7 +9,7 @@ import type { GatewayBrowserClient, GatewayHelloOk } from "./gateway.ts";
 import type { Tab } from "./navigation.ts";
 import type { UiSettings } from "./storage.ts";
 import type { ThemeTransitionContext } from "./theme-transition.ts";
-import type { ThemeMode } from "./theme.ts";
+import type { ThemeMode, ResolvedTheme } from "./theme.ts";
 import type {
   AgentsListResult,
   AgentsFilesListResult,
@@ -44,6 +44,13 @@ import type { ChatAttachment, ChatQueueItem, CronFormState } from "./ui-types.ts
 import type { NostrProfileFormState } from "./views/channels.nostr-profile-form.ts";
 import type { SessionLogEntry } from "./views/usage.ts";
 
+export type SessionStreamBuffer = {
+  chatStream: string | null;
+  chatRunId: string | null;
+  chatStreamStartedAt: number | null;
+  chatMessages: unknown[];
+};
+
 export type AppViewState = {
   settings: UiSettings;
   password: string;
@@ -52,7 +59,7 @@ export type AppViewState = {
   basePath: string;
   connected: boolean;
   theme: ThemeMode;
-  themeResolved: "light" | "dark";
+  themeResolved: ResolvedTheme;
   hello: GatewayHelloOk | null;
   lastError: string | null;
   lastErrorCode: string | null;
@@ -76,6 +83,7 @@ export type AppViewState = {
   chatThinkingLevel: string | null;
   chatQueue: ChatQueueItem[];
   chatManualRefreshInFlight: boolean;
+  sessionStreamBuffers: Map<string, SessionStreamBuffer>;
   nodesLoading: boolean;
   nodes: Array<Record<string, unknown>>;
   chatNewMessagesBelow: boolean;

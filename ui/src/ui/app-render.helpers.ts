@@ -34,11 +34,34 @@ function resolveSidebarChatSessionKey(state: AppViewState): string {
 }
 
 function resetChatStateForSessionSwitch(state: AppViewState, sessionKey: string) {
+  const oldKey = state.sessionKey;
+  // Save current stream state to buffer before switching
+  if (oldKey && oldKey !== sessionKey && (state.chatStream || state.chatRunId)) {
+    state.sessionStreamBuffers.set(oldKey, {
+      chatStream: state.chatStream,
+      chatRunId: state.chatRunId,
+      chatStreamStartedAt: state.chatStreamStartedAt,
+      chatMessages: [...state.chatMessages],
+    });
+  }
+
   state.sessionKey = sessionKey;
   state.chatMessage = "";
-  state.chatStream = null;
-  (state as unknown as OpenClawApp).chatStreamStartedAt = null;
-  state.chatRunId = null;
+
+  // Restore buffered state if available
+  const buffer = state.sessionStreamBuffers.get(sessionKey);
+  if (buffer) {
+    state.chatStream = buffer.chatStream;
+    state.chatRunId = buffer.chatRunId;
+    (state as unknown as OpenClawApp).chatStreamStartedAt = buffer.chatStreamStartedAt;
+    state.chatMessages = buffer.chatMessages;
+    state.sessionStreamBuffers.delete(sessionKey);
+  } else {
+    state.chatStream = null;
+    (state as unknown as OpenClawApp).chatStreamStartedAt = null;
+    state.chatRunId = null;
+  }
+
   (state as unknown as OpenClawApp).resetToolStream();
   (state as unknown as OpenClawApp).resetChatScroll();
   state.applySettings({
@@ -395,7 +418,7 @@ function resolveSessionOptions(
   return options;
 }
 
-const THEME_ORDER: ThemeMode[] = ["system", "light", "dark"];
+const THEME_ORDER: ThemeMode[] = ["system", "light", "dark", "muhuotongming"];
 
 export function renderThemeToggle(state: AppViewState) {
   const index = Math.max(0, THEME_ORDER.indexOf(state.theme));
@@ -440,6 +463,15 @@ export function renderThemeToggle(state: AppViewState) {
         >
           ${renderMoonIcon()}
         </button>
+        <button
+          class="theme-toggle__button ${state.theme === "muhuotongming" ? "active" : ""}"
+          @click=${applyTheme("muhuotongming")}
+          aria-pressed=${state.theme === "muhuotongming"}
+          aria-label="木火通明"
+          title="木火通明"
+        >
+          ${renderFireIcon()}
+        </button>
       </div>
     </div>
   `;
@@ -477,6 +509,16 @@ function renderMonitorIcon() {
       <rect width="20" height="14" x="2" y="3" rx="2"></rect>
       <line x1="8" x2="16" y1="21" y2="21"></line>
       <line x1="12" x2="12" y1="17" y2="21"></line>
+    </svg>
+  `;
+}
+
+function renderFireIcon() {
+  return html`
+    <svg class="theme-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M12 12c2-2.96 0-7-1-8 0 3.038-1.773 4.741-3 6-1.226 1.26-2 3.24-2 5a6 6 0 1 0 12 0c0-1.532-1.056-3.94-2-5-1.786 3-2.791 3-4 2z"
+      ></path>
     </svg>
   `;
 }
@@ -627,6 +669,25 @@ export function renderSessionSidebar(state: AppViewState) {
         ${plusIcon}
         <span>New Chat</span>
       </button>
+      <input
+        type="text"
+        class="session-sidebar__search"
+        placeholder="Search sessions..."
+        @input=${(e: Event) => {
+          const input = e.target as HTMLInputElement;
+          const query = input.value.toLowerCase().trim();
+          const items = (input.closest(".session-sidebar") as HTMLElement)?.querySelectorAll(
+            ".session-sidebar__item",
+          );
+          items?.forEach((item) => {
+            const name =
+              item.querySelector(".session-sidebar__item-name")?.textContent?.toLowerCase() ?? "";
+            const key = item.getAttribute("title")?.toLowerCase() ?? "";
+            (item as HTMLElement).style.display =
+              !query || name.includes(query) || key.includes(query) ? "" : "none";
+          });
+        }}
+      />
       <div class="session-sidebar__list">
         ${
           sorted.length === 0

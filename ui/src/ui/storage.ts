@@ -28,7 +28,7 @@ export function loadSettings(): UiSettings {
     token: "",
     sessionKey: "main",
     lastActiveSessionKey: "main",
-    theme: "system",
+    theme: "muhuotongming",
     chatFocusMode: false,
     chatShowThinking: true,
     splitRatio: 0.6,
@@ -58,7 +58,10 @@ export function loadSettings(): UiSettings {
           : (typeof parsed.sessionKey === "string" && parsed.sessionKey.trim()) ||
             defaults.lastActiveSessionKey,
       theme:
-        parsed.theme === "light" || parsed.theme === "dark" || parsed.theme === "system"
+        parsed.theme === "light" ||
+        parsed.theme === "dark" ||
+        parsed.theme === "system" ||
+        parsed.theme === "muhuotongming"
           ? parsed.theme
           : defaults.theme,
       chatFocusMode:

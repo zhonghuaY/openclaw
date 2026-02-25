@@ -189,6 +189,158 @@
   color-scheme: light;
 }
 
+/* 木火通明 Dark — Deep forest with fire accents */
+:root[data-theme="muhuotongming-dark"] {
+  --bg: #1A2E1A;
+  --bg-accent: #1E331E;
+  --bg-elevated: #243824;
+  --bg-hover: #2E4A2E;
+  --bg-muted: #2E4A2E;
+
+  --card: #1E331E;
+  --card-foreground: #E8F5E9;
+  --card-highlight: rgba(139, 195, 74, 0.08);
+  --popover: #1E331E;
+  --popover-foreground: #E8F5E9;
+
+  --panel: #1A2E1A;
+  --panel-strong: #243824;
+  --panel-hover: #2E4A2E;
+  --chrome: rgba(26, 46, 26, 0.95);
+  --chrome-strong: rgba(26, 46, 26, 0.98);
+
+  --text: #C8E6C9;
+  --text-strong: #E8F5E9;
+  --chat-text: #C8E6C9;
+  --muted: #81C784;
+  --muted-strong: #66BB6A;
+  --muted-foreground: #81C784;
+
+  --border: #2E7D32;
+  --border-strong: #388E3C;
+  --border-hover: #43A047;
+  --input: #2E7D32;
+  --ring: #FF6D00;
+
+  --accent: #FF6D00;
+  --accent-hover: #FF8F00;
+  --accent-muted: #FF6D00;
+  --accent-subtle: rgba(255, 109, 0, 0.18);
+  --accent-foreground: #1A2E1A;
+  --accent-glow: rgba(255, 109, 0, 0.25);
+  --primary: #FF6D00;
+  --primary-foreground: #1A2E1A;
+
+  --secondary: #243824;
+  --secondary-foreground: #E8F5E9;
+  --accent-2: #F9A825;
+  --accent-2-muted: rgba(249, 168, 37, 0.75);
+  --accent-2-subtle: rgba(249, 168, 37, 0.15);
+
+  --ok: #66BB6A;
+  --ok-muted: rgba(102, 187, 106, 0.75);
+  --ok-subtle: rgba(102, 187, 106, 0.12);
+  --destructive: #E65100;
+  --destructive-foreground: #E8F5E9;
+  --warn: #F9A825;
+  --warn-muted: rgba(249, 168, 37, 0.75);
+  --warn-subtle: rgba(249, 168, 37, 0.12);
+  --danger: #E65100;
+  --danger-muted: rgba(230, 81, 0, 0.75);
+  --danger-subtle: rgba(230, 81, 0, 0.12);
+  --info: #43A047;
+
+  --focus: rgba(255, 109, 0, 0.25);
+  --focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--ring);
+  --focus-glow: 0 0 0 2px var(--bg), 0 0 0 4px var(--ring), 0 0 20px var(--accent-glow);
+
+  --grid-line: rgba(102, 187, 106, 0.06);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(102, 187, 106, 0.05);
+  --shadow-lg: 0 12px 28px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(102, 187, 106, 0.05);
+  --shadow-xl: 0 24px 48px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(102, 187, 106, 0.05);
+  --shadow-glow: 0 0 30px var(--accent-glow);
+
+  color-scheme: dark;
+}
+
+/* 木火通明 Light — Pale jade with warm ember accents */
+:root[data-theme="muhuotongming-light"] {
+  --bg: #F1F8E9;
+  --bg-accent: #E8F5E9;
+  --bg-elevated: #FFFFFF;
+  --bg-hover: #DCEDC8;
+  --bg-muted: #DCEDC8;
+  --bg-content: #E8F5E9;
+
+  --card: #FFFFFF;
+  --card-foreground: #1B5E20;
+  --card-highlight: rgba(27, 94, 32, 0.05);
+  --popover: #FFFFFF;
+  --popover-foreground: #1B5E20;
+
+  --panel: #F1F8E9;
+  --panel-strong: #E8F5E9;
+  --panel-hover: #DCEDC8;
+  --chrome: rgba(241, 248, 233, 0.95);
+  --chrome-strong: rgba(241, 248, 233, 0.98);
+
+  --text: #2E7D32;
+  --text-strong: #1B5E20;
+  --chat-text: #2E7D32;
+  --muted: #689F38;
+  --muted-strong: #558B2F;
+  --muted-foreground: #689F38;
+
+  --border: #A5D6A7;
+  --border-strong: #81C784;
+  --border-hover: #66BB6A;
+  --input: #A5D6A7;
+  --ring: #E65100;
+
+  --accent: #E65100;
+  --accent-hover: #FF6D00;
+  --accent-muted: #E65100;
+  --accent-subtle: rgba(230, 81, 0, 0.12);
+  --accent-foreground: #FFFFFF;
+  --accent-glow: rgba(230, 81, 0, 0.15);
+  --primary: #E65100;
+  --primary-foreground: #FFFFFF;
+
+  --secondary: #E8F5E9;
+  --secondary-foreground: #2E7D32;
+  --accent-2: #F9A825;
+  --accent-2-muted: rgba(249, 168, 37, 0.75);
+  --accent-2-subtle: rgba(249, 168, 37, 0.12);
+
+  --ok: #2E7D32;
+  --ok-muted: rgba(46, 125, 50, 0.75);
+  --ok-subtle: rgba(46, 125, 50, 0.1);
+  --destructive: #E65100;
+  --destructive-foreground: #FFFFFF;
+  --warn: #F9A825;
+  --warn-muted: rgba(249, 168, 37, 0.75);
+  --warn-subtle: rgba(249, 168, 37, 0.1);
+  --danger: #E65100;
+  --danger-muted: rgba(230, 81, 0, 0.75);
+  --danger-subtle: rgba(230, 81, 0, 0.1);
+  --info: #2E7D32;
+
+  --focus: rgba(230, 81, 0, 0.2);
+  --focus-glow: 0 0 0 2px var(--bg), 0 0 0 4px var(--ring), 0 0 16px var(--accent-glow);
+
+  --grid-line: rgba(46, 125, 50, 0.06);
+
+  --shadow-sm: 0 1px 2px rgba(27, 94, 32, 0.08);
+  --shadow-md: 0 4px 12px rgba(27, 94, 32, 0.1), 0 0 0 1px rgba(27, 94, 32, 0.05);
+  --shadow-lg: 0 12px 28px rgba(27, 94, 32, 0.14), 0 0 0 1px rgba(27, 94, 32, 0.05);
+  --shadow-xl: 0 24px 48px rgba(27, 94, 32, 0.18), 0 0 0 1px rgba(27, 94, 32, 0.05);
+  --shadow-glow: 0 0 24px var(--accent-glow);
+
+  color-scheme: light;
+}
+
 * {
   box-sizing: border-box;
 }

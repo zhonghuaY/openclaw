@@ -273,6 +273,19 @@ img.chat-avatar {
   animation: pulsing-border 1.5s ease-out infinite;
 }
 
+.chat-bubble.streaming .chat-text::after {
+  content: "▍";
+  display: inline;
+  color: var(--accent);
+  animation: cursor-blink 1s step-end infinite;
+  font-weight: 100;
+}
+
+@keyframes cursor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
 @keyframes pulsing-border {
   0%,
   100% {
@@ -296,5 +309,35 @@ img.chat-avatar {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+/* 木火通明 theme overrides */
+:root[data-theme="muhuotongming-dark"] .chat-group.user .chat-bubble {
+  background: rgba(255, 109, 0, 0.15);
+  border-color: rgba(255, 109, 0, 0.25);
+}
+
+:root[data-theme="muhuotongming-dark"] .chat-group.user .chat-bubble:hover {
+  background: rgba(255, 109, 0, 0.22);
+}
+
+:root[data-theme="muhuotongming-light"] .chat-bubble {
+  border-color: var(--border);
+  box-shadow: inset 0 1px 0 var(--card-highlight);
+}
+
+:root[data-theme="muhuotongming-light"] .chat-group.user .chat-bubble {
+  border-color: rgba(230, 81, 0, 0.2);
+  background: rgba(255, 109, 0, 0.1);
+}
+
+:root[data-theme="muhuotongming-light"] .chat-group.user .chat-bubble:hover {
+  background: rgba(255, 109, 0, 0.18);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-bubble.streaming .chat-text::after {
+    animation: none;
   }
 }

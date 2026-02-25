@@ -1,3 +1,4 @@
+import type { SessionStreamBuffer } from "../app-view-state.ts";
 import { extractText } from "../chat/message-extract.ts";
 import type { GatewayBrowserClient } from "../gateway.ts";
 import type { ChatAttachment } from "../ui-types.ts";
@@ -17,6 +18,7 @@ export type ChatState = {
   chatStream: string | null;
   chatStreamStartedAt: number | null;
   lastError: string | null;
+  sessionStreamBuffers?: Map<string, SessionStreamBuffer>;
 };
 
 export type ChatEventPayload = {
@@ -221,7 +223,50 @@ export function handleChatEvent(state: ChatState, payload?: ChatEventPayload) {
   if (!payload) {
     return null;
   }
+  // Route events for non-active sessions to stream buffer
   if (payload.sessionKey !== state.sessionKey) {
+    const buffers = state.sessionStreamBuffers;
+    if (buffers) {
+      const buffer = buffers.get(payload.sessionKey);
+      if (buffer && buffer.chatRunId === payload.runId) {
+        if (payload.state === "delta") {
+          const next = extractText(payload.message);
+          if (typeof next === "string") {
+            const current = buffer.chatStream ?? "";
+            if (!current || next.length >= current.length) {
+              buffer.chatStream = next;
+            }
+          }
+        } else if (payload.state === "final") {
+          const finalMessage = normalizeFinalAssistantMessage(payload.message);
+          if (finalMessage) {
+            buffer.chatMessages = [...buffer.chatMessages, finalMessage];
+          }
+          buffer.chatStream = null;
+          buffer.chatRunId = null;
+          buffer.chatStreamStartedAt = null;
+          buffers.delete(payload.sessionKey);
+        } else if (payload.state === "aborted" || payload.state === "error") {
+          if (payload.state === "aborted") {
+            const streamedText = buffer.chatStream ?? "";
+            if (streamedText.trim()) {
+              buffer.chatMessages = [
+                ...buffer.chatMessages,
+                {
+                  role: "assistant",
+                  content: [{ type: "text", text: streamedText }],
+                  timestamp: Date.now(),
+                },
+              ];
+            }
+          }
+          buffer.chatStream = null;
+          buffer.chatRunId = null;
+          buffer.chatStreamStartedAt = null;
+          buffers.delete(payload.sessionKey);
+        }
+      }
+    }
     return null;
   }
 
