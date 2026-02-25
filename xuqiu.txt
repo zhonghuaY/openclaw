@@ -1,0 +1,56 @@
+OpenClaw 内嵌 NoteX iframe 方案记录
+需求
+将 NoteX 笔记系统作为一个 tab 内嵌到 OpenClaw Control UI 的左侧侧边栏中，点击后在 OpenClaw 窗口内以 iframe 方式显示 NoteX，而非跳转新页面。
+遇到的问题
+问题：CSP (Content Security Policy) 阻止 iframe 加载
+点击 NoteX tab 后，浏览器报错：
+Refused to frame 'https://tdx-trading-view.myaddr.io:180/' because it violates the following Content Security Policy directive: "default-src 'self'". Note that 'frame-src' was not explicitly set, so 'default-src' is used as a fallback.
+原因：OpenClaw Gateway 返回的 HTTP 响应头包含严格的 CSP 策略，不允许加载跨源 iframe：
+content-security-policy: default-src 'self'; ... (无 frame-src 指令)
+x-frame-options: DENY
+解决方案
+1. 修改 Control UI 前端 (index-D1uIGfCV.js)
+文件路径: /home/albert/.nvm/versions/node/v24.13.1/lib/node_modules/openclaw/dist/control-ui/assets/index-D1uIGfCV.js
+修改了以下 7 处：
+a. 添加导航分组
+// 原始
+{label:"settings",tabs:["config","debug","logs"]}
+
+// 修改后
+{label:"settings",tabs:["config","debug","logs"]},{label:"tools",tabs:["notex"]}
+b. 添加路由映射
+// 在 _l 对象中添加
+notex:"/notex"
+c. 添加 tab 图标映射 (vg 函数)
+case"notex":return"book";
+d. 添加 tab 标题 (英文 i18n)
+tabs:{notex:"NoteX",...}
+subtitles:{notex:"Embedded NoteX workspace",...}
+nav:{tools:"Tools",...}
+e. 添加 tab 标题 (中文 i18n - zh-CN-BnGl0BiC.js)
+tabs:{notex:"NoteX",...}
+subtitles:{notex:"内嵌 NoteX 笔记工作区",...}
+nav:{tools:"工具",...}
+f. 添加 iframe 渲染模板
+${e.tab==="notex"?c`<div style="width:100%;height:calc(100vh - var(--topbar-height, 56px) - 48px);overflow:hidden;">
+  <iframe src="https://tdx-trading-view.myaddr.io:180" style="width:100%;height:100%;border:none;" title="NoteX"></iframe>
+</div>`:m}
+2. 修改 Nginx 反向代理 (VPS 服务器)
+文件路径: VPS 36.151.150.54 的 /etc/nginx/sites-enabled/openclaw
+在 location / 块中添加：
+# 隐藏上游返回的 CSP 和 X-Frame-Options 头
+proxy_hide_header Content-Security-Policy;
+proxy_hide_header X-Frame-Options;
+
+# 添加自定义 CSP，允许 iframe 加载 NoteX
+add_header Content-Security-Policy "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' https:; connect-src 'self' ws: wss:; frame-src https://tdx-trading-view.myaddr.io:180" always;
+关键变更：
+proxy_hide_header Content-Security-Policy — 移除上游的严格 CSP
+proxy_hide_header X-Frame-Options — 移除 DENY 头
+新 CSP 添加了 frame-src https://tdx-trading-view.myaddr.io:180 — 允许嵌入 NoteX
+同时放开了 font-src 为 'self' https: 以加载 Google Fonts
+修改后执行 sudo nginx -s reload 生效。
+验证方法
+使用 Puppeteer 无头浏览器验证：
+// iframe 加载成功
+{"exists":true,"src":"https://tdx-trading-view.myaddr.io:180/","width":768,"height":496}

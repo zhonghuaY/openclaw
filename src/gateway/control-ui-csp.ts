@@ -9,7 +9,8 @@ export function buildControlUiCspHeader(): string {
     "script-src 'self'",
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: https:",
-    "font-src 'self'",
+    "font-src 'self' https:",
     "connect-src 'self' ws: wss:",
+    "frame-src https://tdx-trading-view.myaddr.io:180",
   ].join("; ");
 }
