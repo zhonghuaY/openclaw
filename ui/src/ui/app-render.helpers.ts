@@ -470,7 +470,7 @@ export function renderThemeToggle(state: AppViewState) {
           aria-label="木火通明"
           title="木火通明"
         >
-          ${renderFireIcon()}
+          ${renderTreeIcon()}
         </button>
       </div>
     </div>
@@ -513,12 +513,10 @@ function renderMonitorIcon() {
   `;
 }
 
-function renderFireIcon() {
+function renderTreeIcon() {
   return html`
-    <svg class="theme-icon" viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        d="M12 12c2-2.96 0-7-1-8 0 3.038-1.773 4.741-3 6-1.226 1.26-2 3.24-2 5a6 6 0 1 0 12 0c0-1.532-1.056-3.94-2-5-1.786 3-2.791 3-4 2z"
-      ></path>
+    <svg class="theme-icon" viewBox="0 0 24 24" aria-hidden="true" style="fill: #2e7d32">
+      <path d="M12 2L6 10h3l-3 6h3l-3 6h12l-3-6h3l-3-6h3L12 2z"></path>
     </svg>
   `;
 }
