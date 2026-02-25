@@ -868,6 +868,9 @@ export const chatHandlers: GatewayRequestHandlers = {
           images: parsedImages.length > 0 ? parsedImages : undefined,
           onAgentRunStart: (runId) => {
             agentRunStarted = true;
+            // Map agent runId → raw session key so server-chat event handler
+            // broadcasts with the key the client expects (not the canonical one).
+            context.addChatRun(runId, { sessionKey: rawSessionKey, clientRunId });
             const connId = typeof client?.connId === "string" ? client.connId : undefined;
             const wantsToolEvents = hasGatewayClientCap(
               client?.connect?.caps,
