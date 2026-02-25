@@ -663,6 +663,8 @@ export function renderSessionSidebar(state: AppViewState) {
     });
   };
 
+  let searchQuery = "";
+
   return html`
     <div class="session-sidebar">
       <button class="session-sidebar__new-btn" @click=${onNewSession} title="New chat session">
@@ -674,17 +676,16 @@ export function renderSessionSidebar(state: AppViewState) {
         class="session-sidebar__search"
         placeholder="Search sessions..."
         @input=${(e: Event) => {
-          const input = e.target as HTMLInputElement;
-          const query = input.value.toLowerCase().trim();
-          const items = (input.closest(".session-sidebar") as HTMLElement)?.querySelectorAll(
-            ".session-sidebar__item",
-          );
+          searchQuery = (e.target as HTMLInputElement).value.toLowerCase().trim();
+          const items = (e.target as HTMLElement)
+            .closest(".session-sidebar")
+            ?.querySelectorAll(".session-sidebar__item");
           items?.forEach((item) => {
             const name =
               item.querySelector(".session-sidebar__item-name")?.textContent?.toLowerCase() ?? "";
             const key = item.getAttribute("title")?.toLowerCase() ?? "";
-            (item as HTMLElement).style.display =
-              !query || name.includes(query) || key.includes(query) ? "" : "none";
+            item.style.display =
+              !searchQuery || name.includes(searchQuery) || key.includes(searchQuery) ? "" : "none";
           });
         }}
       />
@@ -701,11 +702,16 @@ export function renderSessionSidebar(state: AppViewState) {
                   const isActive = s.key === state.sessionKey;
                   const displayName = resolveSessionDisplayName(s.key, s);
                   const timeLabel = formatSessionTime(s.updatedAt);
+                  const matchesSearch =
+                    !searchQuery ||
+                    displayName.toLowerCase().includes(searchQuery) ||
+                    s.key.toLowerCase().includes(searchQuery);
                   return html`
                   <div
                     class="session-sidebar__item ${isActive ? "session-sidebar__item--active" : ""}"
                     @click=${() => onSelectSession(s.key)}
                     title=${s.key}
+                    style=${matchesSearch ? "" : "display:none"}
                   >
                     <div class="session-sidebar__item-content">
                       <span class="session-sidebar__item-icon">${icons.messageSquare}</span>
