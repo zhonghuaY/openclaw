@@ -1,5 +1,6 @@
 let mermaidModule: typeof import("mermaid") | null = null;
 let initPromise: Promise<void> | null = null;
+let observerStarted = false;
 
 async function ensureMermaid() {
   if (mermaidModule) {
@@ -55,4 +56,16 @@ export async function renderMermaidDiagrams(root: HTMLElement | Document = docum
       pre.classList.add("mermaid-error");
     }
   }
+}
+
+/** Start a MutationObserver to auto-render mermaid blocks added to the DOM */
+export function startMermaidObserver() {
+  if (observerStarted) return;
+  observerStarted = true;
+  const observer = new MutationObserver(() => {
+    if (document.querySelector('.mermaid-container[data-mermaid="pending"]')) {
+      renderMermaidDiagrams();
+    }
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
 }

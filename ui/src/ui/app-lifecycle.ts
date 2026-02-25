@@ -17,7 +17,7 @@ import {
   syncThemeWithSettings,
 } from "./app-settings.ts";
 import { loadControlUiBootstrapConfig } from "./controllers/control-ui-bootstrap.ts";
-import { renderMermaidDiagrams } from "./mermaid-init.ts";
+import { renderMermaidDiagrams, startMermaidObserver } from "./mermaid-init.ts";
 import type { Tab } from "./navigation.ts";
 
 type LifecycleHost = {
@@ -61,6 +61,7 @@ export function handleConnected(host: LifecycleHost) {
 
 export function handleFirstUpdated(host: LifecycleHost) {
   observeTopbar(host as unknown as Parameters<typeof observeTopbar>[0]);
+  startMermaidObserver();
 }
 
 export function handleDisconnected(host: LifecycleHost) {
