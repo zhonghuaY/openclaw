@@ -117,6 +117,37 @@
   border: 1px solid rgba(0, 0, 0, 0.1);
 }
 
+/* Mermaid diagrams */
+.mermaid-container {
+  margin: 8px 0;
+  padding: 12px;
+  background: var(--bg-elevated, #fff);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  overflow-x: auto;
+  text-align: center;
+}
+
+.mermaid-container[data-mermaid="pending"] pre.mermaid {
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 6px;
+  padding: 10px 12px;
+  text-align: left;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.mermaid-container[data-mermaid="error"] pre.mermaid-error {
+  border: 1px solid var(--danger, #c62828);
+  color: var(--danger, #c62828);
+  background: var(--danger-subtle, rgba(198, 40, 40, 0.1));
+}
+
+.mermaid-container svg {
+  max-width: 100%;
+  height: auto;
+}
+
 .chat-text :where(hr) {
   border: none;
   border-top: 1px solid var(--border);

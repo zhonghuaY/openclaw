@@ -2,6 +2,8 @@ import DOMPurify from "dompurify";
 import { marked } from "marked";
 import { truncateText } from "./format.ts";
 
+let mermaidCounter = 0;
+
 marked.setOptions({
   gfm: true,
   breaks: true,
@@ -14,6 +16,7 @@ const allowedTags = [
   "br",
   "code",
   "del",
+  "div",
   "em",
   "h1",
   "h2",
@@ -26,6 +29,7 @@ const allowedTags = [
   "p",
   "pre",
   "strong",
+  "svg",
   "table",
   "tbody",
   "td",
@@ -34,9 +38,69 @@ const allowedTags = [
   "tr",
   "ul",
   "img",
+  "span",
+  "g",
+  "path",
+  "line",
+  "rect",
+  "circle",
+  "ellipse",
+  "polygon",
+  "polyline",
+  "text",
+  "tspan",
+  "defs",
+  "clipPath",
+  "marker",
+  "foreignObject",
+  "style",
 ];
 
-const allowedAttrs = ["class", "href", "rel", "target", "title", "start", "src", "alt"];
+const allowedAttrs = [
+  "class",
+  "href",
+  "rel",
+  "target",
+  "title",
+  "start",
+  "src",
+  "alt",
+  "data-mermaid",
+  "id",
+  "viewBox",
+  "xmlns",
+  "width",
+  "height",
+  "fill",
+  "stroke",
+  "stroke-width",
+  "d",
+  "transform",
+  "x",
+  "y",
+  "x1",
+  "y1",
+  "x2",
+  "y2",
+  "cx",
+  "cy",
+  "r",
+  "rx",
+  "ry",
+  "points",
+  "text-anchor",
+  "dominant-baseline",
+  "font-size",
+  "font-family",
+  "font-weight",
+  "style",
+  "clip-path",
+  "marker-end",
+  "marker-start",
+  "opacity",
+  "dx",
+  "dy",
+];
 const sanitizeOptions = {
   ALLOWED_TAGS: allowedTags,
   ALLOWED_ATTR: allowedAttrs,
@@ -131,6 +195,14 @@ export function toSanitizedMarkdownHtml(markdown: string): string {
 // pages) as formatted output is confusing UX (#13937).
 const htmlEscapeRenderer = new marked.Renderer();
 htmlEscapeRenderer.html = ({ text }: { text: string }) => escapeHtml(text);
+htmlEscapeRenderer.code = ({ text, lang }: { text: string; lang?: string }) => {
+  if (lang === "mermaid") {
+    const id = `mermaid-${++mermaidCounter}`;
+    return `<div class="mermaid-container" data-mermaid="pending"><pre class="mermaid" id="${id}">${escapeHtml(text)}</pre></div>`;
+  }
+  const langClass = lang ? ` class="language-${escapeHtml(lang)}"` : "";
+  return `<pre><code${langClass}>${escapeHtml(text)}</code></pre>`;
+};
 
 function escapeHtml(value: string): string {
   return value
