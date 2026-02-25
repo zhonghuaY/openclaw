@@ -11,7 +11,7 @@ import { icons } from "./icons.ts";
 import { iconForTab, pathForTab, titleForTab, type Tab } from "./navigation.ts";
 import type { ThemeTransitionContext } from "./theme-transition.ts";
 import type { ThemeMode } from "./theme.ts";
-import type { SessionsListResult } from "./types.ts";
+import type { GatewaySessionRow, SessionsListResult } from "./types.ts";
 
 type SessionDefaultsSnapshot = {
   mainSessionKey?: string;
@@ -587,6 +587,19 @@ export function renderSessionSidebar(state: AppViewState) {
 
   const onNewSession = () => {
     const key = `chat-${Date.now()}`;
+    // Optimistically add the new session to the sidebar list
+    if (state.sessionsResult) {
+      const newRow: GatewaySessionRow = {
+        key,
+        kind: "direct",
+        updatedAt: Date.now(),
+      };
+      state.sessionsResult = {
+        ...state.sessionsResult,
+        sessions: [newRow, ...state.sessionsResult.sessions],
+        count: state.sessionsResult.count + 1,
+      };
+    }
     resetChatStateForSessionSwitch(state, key);
     void state.loadAssistantIdentity();
     syncUrlWithSessionKey(
