@@ -303,7 +303,13 @@ export const sessionsHandlers: GatewayRequestHandlers = {
     if (!key) {
       return;
     }
-    if (rejectWebchatSessionMutation({ action: "patch", client, isWebchatConnect, respond })) {
+    // Allow webchat clients to patch displayName only (for rename via context menu)
+    const isDisplayNameOnlyPatch =
+      "displayName" in p && Object.keys(p).every((k) => k === "key" || k === "displayName");
+    if (
+      !isDisplayNameOnlyPatch &&
+      rejectWebchatSessionMutation({ action: "patch", client, isWebchatConnect, respond })
+    ) {
       return;
     }
 
