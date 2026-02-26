@@ -706,6 +706,75 @@ export function renderSessionSidebar(state: AppViewState) {
 
   let searchQuery = "";
 
+  const dismissContextMenu = () => {
+    const existing = document.querySelector(".session-sidebar__context-menu");
+    if (existing) {
+      existing.remove();
+    }
+  };
+
+  const onContextMenu = (e: MouseEvent, key: string, isMainSession: boolean) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dismissContextMenu();
+
+    const menu = document.createElement("div");
+    menu.className = "session-sidebar__context-menu";
+    menu.style.left = `${e.clientX}px`;
+    menu.style.top = `${e.clientY}px`;
+
+    const renameBtn = document.createElement("button");
+    renameBtn.className = "session-sidebar__context-menu-item";
+    renameBtn.textContent = "Rename";
+    renameBtn.addEventListener("click", () => {
+      dismissContextMenu();
+      const item = document.querySelector(`.session-sidebar__item[title="${key}"]`);
+      const nameSpan = item?.querySelector(".session-sidebar__item-name") as HTMLElement | null;
+      if (nameSpan) {
+        onRenameSession(key, nameSpan);
+      }
+    });
+    menu.appendChild(renameBtn);
+
+    if (!isMainSession) {
+      const deleteBtn = document.createElement("button");
+      deleteBtn.className =
+        "session-sidebar__context-menu-item session-sidebar__context-menu-item--danger";
+      deleteBtn.textContent = "Delete";
+      deleteBtn.addEventListener("click", () => {
+        dismissContextMenu();
+        void onDeleteSession(key);
+      });
+      menu.appendChild(deleteBtn);
+    }
+
+    document.body.appendChild(menu);
+
+    // Clamp menu position to viewport
+    const rect = menu.getBoundingClientRect();
+    if (rect.right > window.innerWidth) {
+      menu.style.left = `${window.innerWidth - rect.width - 4}px`;
+    }
+    if (rect.bottom > window.innerHeight) {
+      menu.style.top = `${window.innerHeight - rect.height - 4}px`;
+    }
+
+    const onDismiss = (ev: Event) => {
+      if (ev.type === "keydown" && (ev as KeyboardEvent).key !== "Escape") {
+        return;
+      }
+      dismissContextMenu();
+      document.removeEventListener("click", onDismiss);
+      document.removeEventListener("keydown", onDismiss);
+      document.removeEventListener("scroll", onDismiss, true);
+    };
+    requestAnimationFrame(() => {
+      document.addEventListener("click", onDismiss);
+      document.addEventListener("keydown", onDismiss);
+      document.addEventListener("scroll", onDismiss, true);
+    });
+  };
+
   return html`
     <div class="session-sidebar">
       <button class="session-sidebar__new-btn" @click=${onNewSession} title="New chat session">
@@ -751,6 +820,7 @@ export function renderSessionSidebar(state: AppViewState) {
                   <div
                     class="session-sidebar__item ${isActive ? "session-sidebar__item--active" : ""}"
                     @click=${() => onSelectSession(s.key)}
+                    @contextmenu=${(e: MouseEvent) => onContextMenu(e, s.key, s.key === mainSessionKey)}
                     title=${s.key}
                     style=${matchesSearch ? "" : "display:none"}
                   >
