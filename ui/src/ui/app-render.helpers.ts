@@ -6,7 +6,7 @@ import { syncUrlWithSessionKey } from "./app-settings.ts";
 import type { AppViewState } from "./app-view-state.ts";
 import { OpenClawApp } from "./app.ts";
 import { ChatState, loadChatHistory } from "./controllers/chat.ts";
-import { loadSessions, patchSession } from "./controllers/sessions.ts";
+import { loadSessions } from "./controllers/sessions.ts";
 import { icons } from "./icons.ts";
 import { iconForTab, pathForTab, titleForTab, type Tab } from "./navigation.ts";
 import type { ThemeTransitionContext } from "./theme-transition.ts";
@@ -580,6 +580,9 @@ const trashIcon = html`
   </svg>
 `;
 
+// Module-level state for inline rename (persists across Lit re-renders)
+let renamingKey: string | null = null;
+
 export function renderSessionSidebar(state: AppViewState) {
   const sessions = state.sessionsResult?.sessions ?? [];
   const sorted = [...sessions].toSorted((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
@@ -664,44 +667,45 @@ export function renderSessionSidebar(state: AppViewState) {
     }
   };
 
-  const onRenameSession = (key: string, el: HTMLElement) => {
-    const nameSpan = el
-      .closest(".session-sidebar__item")
-      ?.querySelector(".session-sidebar__item-name") as HTMLElement | null;
-    if (!nameSpan) {
-      return;
-    }
-    const currentName = nameSpan.textContent?.trim() ?? "";
-    const input = document.createElement("input");
-    input.type = "text";
-    input.className = "session-sidebar__rename-input";
-    input.value = currentName;
-    nameSpan.replaceWith(input);
-    input.focus();
-    input.select();
-    const commit = () => {
-      const newName = input.value.trim();
-      if (newName && newName !== currentName) {
-        void patchSession(state as unknown as Parameters<typeof patchSession>[0], key, {
-          displayName: newName,
-        });
-      }
-      input.replaceWith(nameSpan);
-      if (newName) {
-        nameSpan.textContent = newName;
-      }
-    };
-    input.addEventListener("blur", commit, { once: true });
-    input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        input.blur();
-      }
-      if (e.key === "Escape") {
-        input.removeEventListener("blur", commit);
-        input.replaceWith(nameSpan);
+  const onRenameSession = (key: string) => {
+    renamingKey = key;
+    (state as unknown as { requestUpdate?: () => void }).requestUpdate?.();
+    // Auto-focus the input after Lit re-render
+    requestAnimationFrame(() => {
+      const input = document.querySelector(
+        `.session-sidebar__item[title="${key}"] .session-sidebar__rename-input`,
+      );
+      if (input) {
+        input.focus();
+        input.select();
       }
     });
+  };
+
+  const commitRename = (key: string, newName: string, currentName: string) => {
+    renamingKey = null;
+    if (newName && newName !== currentName) {
+      // Optimistic local update
+      if (state.sessionsResult) {
+        const session = state.sessionsResult.sessions.find((s) => s.key === key);
+        if (session) {
+          session.displayName = newName;
+        }
+      }
+      // Fire-and-forget RPC
+      if (state.client && state.connected) {
+        void (
+          state.client as { request: (method: string, params: unknown) => Promise<unknown> }
+        ).request("sessions.patch", { key, displayName: newName });
+      }
+    }
+    // Trigger re-render to show name span
+    (state as unknown as { requestUpdate?: () => void }).requestUpdate?.();
+  };
+
+  const cancelRename = () => {
+    renamingKey = null;
+    (state as unknown as { requestUpdate?: () => void }).requestUpdate?.();
   };
 
   let searchQuery = "";
@@ -728,11 +732,7 @@ export function renderSessionSidebar(state: AppViewState) {
     renameBtn.textContent = "Rename";
     renameBtn.addEventListener("click", () => {
       dismissContextMenu();
-      const item = document.querySelector(`.session-sidebar__item[title="${key}"]`);
-      const nameSpan = item?.querySelector(".session-sidebar__item-name") as HTMLElement | null;
-      if (nameSpan) {
-        onRenameSession(key, nameSpan);
-      }
+      onRenameSession(key);
     });
     menu.appendChild(renameBtn);
 
@@ -826,10 +826,34 @@ export function renderSessionSidebar(state: AppViewState) {
                   >
                     <div class="session-sidebar__item-content">
                       <span class="session-sidebar__item-icon">${icons.messageSquare}</span>
-                      <span class="session-sidebar__item-name" @dblclick=${(e: Event) => {
-                        e.stopPropagation();
-                        onRenameSession(s.key, e.target as HTMLElement);
-                      }}>${displayName}</span>
+                      ${
+                        renamingKey === s.key
+                          ? html`<input
+                              type="text"
+                              class="session-sidebar__rename-input"
+                              .value=${displayName}
+                              @blur=${(e: Event) => {
+                                const input = e.target as HTMLInputElement;
+                                commitRename(s.key, input.value.trim(), displayName);
+                              }}
+                              @keydown=${(e: KeyboardEvent) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  (e.target as HTMLInputElement).blur();
+                                }
+                                if (e.key === "Escape") {
+                                  cancelRename();
+                                }
+                              }}
+                              @click=${(e: Event) => e.stopPropagation()}
+                            />`
+                          : html`<span class="session-sidebar__item-name" @dblclick=${(
+                              e: Event,
+                            ) => {
+                              e.stopPropagation();
+                              onRenameSession(s.key);
+                            }}>${displayName}</span>`
+                      }
                     </div>
                     <div class="session-sidebar__item-meta">
                       <span class="session-sidebar__item-time">${timeLabel}</span>
