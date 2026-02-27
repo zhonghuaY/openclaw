@@ -27,6 +27,7 @@ const ANTHROPIC_MODEL_ALIASES: Record<string, string> = {
   "sonnet-4.5": "claude-sonnet-4-5",
 };
 const OPENAI_CODEX_OAUTH_MODEL_PREFIXES = ["gpt-5.3-codex"] as const;
+const OPENCODE_ZAI_GLM_MODEL_PREFIX = "glm-4.7";
 
 function normalizeAliasKey(value: string): string {
   return value.trim().toLowerCase();
@@ -145,9 +146,23 @@ function shouldUseOpenAICodexProvider(provider: string, model: string): boolean 
   );
 }
 
+function shouldMapOpencodeToZai(provider: string, model: string): boolean {
+  if (provider !== "opencode") {
+    return false;
+  }
+  const normalized = model.trim().toLowerCase();
+  return (
+    normalized === OPENCODE_ZAI_GLM_MODEL_PREFIX ||
+    normalized.startsWith(`${OPENCODE_ZAI_GLM_MODEL_PREFIX}-`)
+  );
+}
+
 export function normalizeModelRef(provider: string, model: string): ModelRef {
   const normalizedProvider = normalizeProviderId(provider);
   const normalizedModel = normalizeProviderModelId(normalizedProvider, model.trim());
+  if (shouldMapOpencodeToZai(normalizedProvider, normalizedModel)) {
+    return { provider: "zai", model: normalizedModel };
+  }
   if (shouldUseOpenAICodexProvider(normalizedProvider, normalizedModel)) {
     return { provider: "openai-codex", model: normalizedModel };
   }
