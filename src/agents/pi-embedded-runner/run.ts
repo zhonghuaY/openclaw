@@ -2,7 +2,9 @@ import { randomBytes } from "node:crypto";
 import fs from "node:fs/promises";
 import type { ThinkLevel } from "../../auto-reply/thinking.js";
 import { resolveAgentModelFallbackValues } from "../../config/model-input.js";
+import { resolveHookPhaseTimeoutMs } from "../../infra/env.js";
 import { generateSecureToken } from "../../infra/secure-random.js";
+import { withTimeout } from "../../node-host/with-timeout.js";
 import { getGlobalHookRunner } from "../../plugins/hook-runner-global.js";
 import type { PluginHookBeforeAgentStartResult } from "../../plugins/types.js";
 import { enqueueCommandInLane } from "../../process/command-queue.js";
@@ -250,11 +252,13 @@ export async function runEmbeddedPiAgent(
         workspaceDir: resolvedWorkspace,
         messageProvider: params.messageProvider ?? undefined,
       };
+      const hookPhaseTimeoutMs = resolveHookPhaseTimeoutMs();
       if (hookRunner?.hasHooks("before_model_resolve")) {
         try {
-          modelResolveOverride = await hookRunner.runBeforeModelResolve(
-            { prompt: params.prompt },
-            hookCtx,
+          modelResolveOverride = await withTimeout(
+            async () => await hookRunner.runBeforeModelResolve({ prompt: params.prompt }, hookCtx),
+            hookPhaseTimeoutMs,
+            "before_model_resolve hook",
           );
         } catch (hookErr) {
           log.warn(`before_model_resolve hook failed: ${String(hookErr)}`);
@@ -262,9 +266,10 @@ export async function runEmbeddedPiAgent(
       }
       if (hookRunner?.hasHooks("before_agent_start")) {
         try {
-          legacyBeforeAgentStartResult = await hookRunner.runBeforeAgentStart(
-            { prompt: params.prompt },
-            hookCtx,
+          legacyBeforeAgentStartResult = await withTimeout(
+            async () => await hookRunner.runBeforeAgentStart({ prompt: params.prompt }, hookCtx),
+            hookPhaseTimeoutMs,
+            "before_agent_start hook (legacy model resolve path)",
           );
           modelResolveOverride = {
             providerOverride:

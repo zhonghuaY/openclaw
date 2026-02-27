@@ -2,6 +2,7 @@ import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import type { ImageContent } from "@mariozechner/pi-ai";
 import { describe, expect, it, vi } from "vitest";
 import type { OpenClawConfig } from "../../../config/config.js";
+import { withEnvAsync } from "../../../test-utils/env.js";
 import {
   injectHistoryImagesIntoMessages,
   resolveAttemptFsWorkspaceOnly,
@@ -107,6 +108,34 @@ describe("resolvePromptBuildHookResult", () => {
     expect(hookRunner.runBeforeAgentStart).toHaveBeenCalledTimes(1);
     expect(hookRunner.runBeforeAgentStart).toHaveBeenCalledWith({ prompt: "hello", messages }, {});
     expect(result.prependContext).toBe("from-hook");
+  });
+
+  it("fails open when before_prompt_build hook does not resolve", async () => {
+    await withEnvAsync({ OPENCLAW_HOOK_PHASE_TIMEOUT_MS: "15" }, async () => {
+      const hookRunner = {
+        hasHooks: vi.fn(
+          (hookName: "before_prompt_build" | "before_agent_start") =>
+            hookName === "before_prompt_build",
+        ),
+        runBeforePromptBuild: vi.fn(async () => await new Promise<never>(() => {})),
+        runBeforeAgentStart: vi.fn(async () => undefined),
+      };
+
+      const result = await Promise.race([
+        resolvePromptBuildHookResult({
+          prompt: "hello",
+          messages: [],
+          hookCtx: {},
+          hookRunner,
+        }),
+        new Promise<"__timeout__">((resolve) => {
+          setTimeout(() => resolve("__timeout__"), 250);
+        }),
+      ]);
+
+      expect(result).not.toBe("__timeout__");
+      expect(result).toEqual({ prependContext: "", systemPrompt: undefined });
+    });
   });
 });
 

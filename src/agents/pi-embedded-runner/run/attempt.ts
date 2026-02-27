@@ -12,8 +12,10 @@ import {
 import { resolveHeartbeatPrompt } from "../../../auto-reply/heartbeat.js";
 import { resolveChannelCapabilities } from "../../../config/channel-capabilities.js";
 import type { OpenClawConfig } from "../../../config/config.js";
+import { resolveHookPhaseTimeoutMs } from "../../../infra/env.js";
 import { getMachineDisplayName } from "../../../infra/machine-name.js";
 import { MAX_IMAGE_BYTES } from "../../../media/constants.js";
+import { withTimeout } from "../../../node-host/with-timeout.js";
 import { getGlobalHookRunner } from "../../../plugins/hook-runner-global.js";
 import type {
   PluginHookAgentContext,
@@ -183,37 +185,43 @@ export async function resolvePromptBuildHookResult(params: {
   hookRunner?: PromptBuildHookRunner | null;
   legacyBeforeAgentStartResult?: PluginHookBeforeAgentStartResult;
 }): Promise<PluginHookBeforePromptBuildResult> {
-  const promptBuildResult = params.hookRunner?.hasHooks("before_prompt_build")
-    ? await params.hookRunner
-        .runBeforePromptBuild(
-          {
-            prompt: params.prompt,
-            messages: params.messages,
-          },
-          params.hookCtx,
-        )
-        .catch((hookErr: unknown) => {
-          log.warn(`before_prompt_build hook failed: ${String(hookErr)}`);
-          return undefined;
-        })
-    : undefined;
-  const legacyResult =
-    params.legacyBeforeAgentStartResult ??
-    (params.hookRunner?.hasHooks("before_agent_start")
-      ? await params.hookRunner
-          .runBeforeAgentStart(
+  const hookRunner = params.hookRunner ?? undefined;
+  const hookPhaseTimeoutMs = resolveHookPhaseTimeoutMs();
+  const promptBuildResult = hookRunner?.hasHooks("before_prompt_build")
+    ? await withTimeout(
+        async () =>
+          await hookRunner.runBeforePromptBuild(
             {
               prompt: params.prompt,
               messages: params.messages,
             },
             params.hookCtx,
-          )
-          .catch((hookErr: unknown) => {
-            log.warn(
-              `before_agent_start hook (legacy prompt build path) failed: ${String(hookErr)}`,
-            );
-            return undefined;
-          })
+          ),
+        hookPhaseTimeoutMs,
+        "before_prompt_build hook",
+      ).catch((hookErr: unknown) => {
+        log.warn(`before_prompt_build hook failed: ${String(hookErr)}`);
+        return undefined;
+      })
+    : undefined;
+  const legacyResult =
+    params.legacyBeforeAgentStartResult ??
+    (hookRunner?.hasHooks("before_agent_start")
+      ? await withTimeout(
+          async () =>
+            await hookRunner.runBeforeAgentStart(
+              {
+                prompt: params.prompt,
+                messages: params.messages,
+              },
+              params.hookCtx,
+            ),
+          hookPhaseTimeoutMs,
+          "before_agent_start hook (legacy prompt build path)",
+        ).catch((hookErr: unknown) => {
+          log.warn(`before_agent_start hook (legacy prompt build path) failed: ${String(hookErr)}`);
+          return undefined;
+        })
       : undefined);
   return {
     systemPrompt: promptBuildResult?.systemPrompt ?? legacyResult?.systemPrompt,
@@ -757,6 +765,7 @@ export async function runEmbeddedAttempt(
         params.streamParams,
         params.thinkLevel,
         sessionAgentId,
+        params.sessionKey,
       );
 
       if (cacheTrace) {
