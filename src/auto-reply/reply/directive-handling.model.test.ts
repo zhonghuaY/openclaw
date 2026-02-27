@@ -172,6 +172,21 @@ describe("/model chat UX", () => {
       isDefault: false,
     });
   });
+
+  it("maps opencode glm selections to zai when allowlist is zai-based", () => {
+    const resolved = resolveModelSelectionForCommand({
+      command: "/model opencode/glm-4.7-flash",
+      allowedModelKeys: new Set(["zai/glm-4.7-flash"]),
+      allowedModelCatalog: [{ provider: "zai", id: "glm-4.7-flash" }],
+    });
+
+    expect(resolved.errorText).toBeUndefined();
+    expect(resolved.modelSelection).toEqual({
+      provider: "zai",
+      model: "glm-4.7-flash",
+      isDefault: false,
+    });
+  });
 });
 
 describe("handleDirectiveOnly model persist behavior (fixes #1435)", () => {

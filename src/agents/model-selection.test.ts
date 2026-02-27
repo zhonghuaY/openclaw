@@ -83,6 +83,21 @@ describe("model-selection", () => {
       });
     });
 
+    it("maps opencode glm aliases to zai provider refs", () => {
+      expect(parseModelRef("opencode/glm-4.7", "anthropic")).toEqual({
+        provider: "zai",
+        model: "glm-4.7",
+      });
+      expect(parseModelRef("opencode/glm-4.7-flash", "anthropic")).toEqual({
+        provider: "zai",
+        model: "glm-4.7-flash",
+      });
+      expect(parseModelRef("opencode/glm-4.7-flashx", "anthropic")).toEqual({
+        provider: "zai",
+        model: "glm-4.7-flashx",
+      });
+    });
+
     it("should return null for empty strings", () => {
       expect(parseModelRef("", "anthropic")).toBeNull();
       expect(parseModelRef("  ", "anthropic")).toBeNull();
