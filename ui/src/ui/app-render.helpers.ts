@@ -6,55 +6,16 @@ import { syncUrlWithSessionKey } from "./app-settings.ts";
 import type { AppViewState } from "./app-view-state.ts";
 import { OpenClawApp } from "./app.ts";
 import { ChatState, loadChatHistory } from "./controllers/chat.ts";
-import { loadSessions } from "./controllers/sessions.ts";
 import { icons } from "./icons.ts";
 import { iconForTab, pathForTab, titleForTab, type Tab } from "./navigation.ts";
 import type { ThemeTransitionContext } from "./theme-transition.ts";
 import type { ThemeMode } from "./theme.ts";
-import type { GatewaySessionRow, SessionsListResult } from "./types.ts";
+import type { SessionsListResult } from "./types.ts";
 
 type SessionDefaultsSnapshot = {
   mainSessionKey?: string;
   mainKey?: string;
 };
-
-function normalizeUiProviderId(provider: string): string {
-  const normalized = provider.trim().toLowerCase();
-  if (normalized === "z.ai" || normalized === "z-ai") {
-    return "zai";
-  }
-  if (normalized === "opencode-zen") {
-    return "opencode";
-  }
-  if (normalized === "qwen") {
-    return "qwen-portal";
-  }
-  if (normalized === "kimi-code") {
-    return "kimi-coding";
-  }
-  if (normalized === "bedrock" || normalized === "aws-bedrock") {
-    return "amazon-bedrock";
-  }
-  if (normalized === "bytedance" || normalized === "doubao") {
-    return "volcengine";
-  }
-  return normalized;
-}
-
-function resolveModelProviderForBinding(
-  row: GatewaySessionRow | undefined,
-  sessionsResult: SessionsListResult | null,
-): string {
-  const direct = row?.modelProvider?.trim();
-  if (direct) {
-    return direct;
-  }
-  const fromModel = row?.model?.trim() ?? "";
-  if (fromModel.includes("/")) {
-    return fromModel.slice(0, fromModel.indexOf("/")).trim();
-  }
-  return sessionsResult?.defaults?.modelProvider?.trim() ?? "";
-}
 
 function resolveSidebarChatSessionKey(state: AppViewState): string {
   const snapshot = state.hello?.snapshot as
@@ -155,92 +116,6 @@ export function renderChatControls(state: AppViewState) {
   const disableFocusToggle = state.onboarding;
   const showThinking = state.onboarding ? false : state.settings.chatShowThinking;
   const focusActive = state.onboarding ? true : state.settings.chatFocusMode;
-  const rebindCurrentModelSession = async () => {
-    const key = state.sessionKey?.trim();
-    if (!key) {
-      return;
-    }
-    const row = state.sessionsResult?.sessions?.find((entry) => entry.key === key);
-    const currentProvider = resolveModelProviderForBinding(row, state.sessionsResult);
-    const rawProvider = window.prompt(
-      "Model session provider (e.g. opencode)",
-      currentProvider || "opencode",
-    );
-    if (rawProvider === null) {
-      return;
-    }
-    const provider = normalizeUiProviderId(rawProvider);
-    if (!provider) {
-      return;
-    }
-    const currentBinding =
-      row?.cliSessionIds?.[provider]?.trim() ??
-      (provider === "claude-cli" ? row?.claudeCliSessionId?.trim() : "") ??
-      "";
-    const rawNextSessionId = window.prompt(
-      `Backend model session id for ${provider} (empty to clear)`,
-      currentBinding,
-    );
-    if (rawNextSessionId === null) {
-      return;
-    }
-    const nextSessionId = rawNextSessionId.trim();
-    if (nextSessionId === currentBinding) {
-      return;
-    }
-
-    const previousCliSessionIds = row?.cliSessionIds ? { ...row.cliSessionIds } : undefined;
-    const previousClaudeCliSessionId = row?.claudeCliSessionId;
-    if (row) {
-      const nextCliSessionIds = { ...row.cliSessionIds };
-      if (nextSessionId) {
-        nextCliSessionIds[provider] = nextSessionId;
-      } else {
-        delete nextCliSessionIds[provider];
-      }
-      if (Object.keys(nextCliSessionIds).length === 0) {
-        delete row.cliSessionIds;
-      } else {
-        row.cliSessionIds = nextCliSessionIds;
-      }
-      if (provider === "claude-cli") {
-        if (nextSessionId) {
-          row.claudeCliSessionId = nextSessionId;
-        } else {
-          delete row.claudeCliSessionId;
-        }
-      }
-      (state as unknown as { requestUpdate?: () => void }).requestUpdate?.();
-    }
-
-    try {
-      if (state.client && state.connected) {
-        await (
-          state.client as { request: (method: string, params: unknown) => Promise<unknown> }
-        ).request("sessions.patch", {
-          key,
-          cliProvider: provider,
-          cliSessionId: nextSessionId || null,
-        });
-      }
-      await loadSessions(state as unknown as Parameters<typeof loadSessions>[0]);
-    } catch (err) {
-      if (row) {
-        if (previousCliSessionIds === undefined) {
-          delete row.cliSessionIds;
-        } else {
-          row.cliSessionIds = previousCliSessionIds;
-        }
-        if (previousClaudeCliSessionId === undefined) {
-          delete row.claudeCliSessionId;
-        } else {
-          row.claudeCliSessionId = previousClaudeCliSessionId;
-        }
-      }
-      state.sessionsError = String(err);
-      (state as unknown as { requestUpdate?: () => void }).requestUpdate?.();
-    }
-  };
   // Refresh icon
   const refreshIcon = html`
     <svg
@@ -314,17 +189,6 @@ export function renderChatControls(state: AppViewState) {
           )}
         </select>
       </label>
-      <button
-        class="btn btn--sm btn--icon"
-        ?disabled=${!state.connected || !state.sessionKey}
-        @click=${() => {
-          void rebindCurrentModelSession();
-        }}
-        aria-label="Edit model session binding"
-        title="Edit model session binding"
-      >
-        ${icons.link}
-      </button>
       <button
         class="btn btn--sm btn--icon"
         ?disabled=${state.chatLoading || !state.connected}

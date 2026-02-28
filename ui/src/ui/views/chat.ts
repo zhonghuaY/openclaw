@@ -38,6 +38,8 @@ export type ModelSessionState = {
   status: "unstarted" | "unbound" | "bound-self" | "bound-other";
 };
 
+type ModelSessionAction = "start" | "bind" | "unbind" | "close";
+
 export type ChatProps = {
   sessionKey: string;
   onSessionKeyChange: (next: string) => void;
@@ -88,7 +90,6 @@ export type ChatProps = {
   onDraftChange: (next: string) => void;
   onSend: () => void;
   onModelChange?: (model: string | null) => void;
-  onEditModelSessionBinding?: () => void;
   onModelSessionStart?: (model: string) => void;
   onModelSessionBind?: (model: string) => void;
   onModelSessionUnbind?: (model: string) => void;
@@ -265,6 +266,32 @@ function uniqueSortedModels(values: string[]): string[] {
   return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean))).toSorted((a, b) =>
     a.localeCompare(b),
   );
+}
+
+function modelSessionActionsForStatus(status: ModelSessionState["status"]): ModelSessionAction[] {
+  if (status === "unstarted") {
+    return ["start"];
+  }
+  if (status === "unbound") {
+    return ["bind", "close"];
+  }
+  if (status === "bound-self") {
+    return ["unbind", "close"];
+  }
+  return [];
+}
+
+function modelSessionActionLabel(action: ModelSessionAction): string {
+  if (action === "start") {
+    return "Start";
+  }
+  if (action === "bind") {
+    return "Bind";
+  }
+  if (action === "unbind") {
+    return "Unbind";
+  }
+  return "Close";
 }
 
 export function renderChat(props: ChatProps) {
@@ -523,20 +550,6 @@ export function renderChat(props: ChatProps) {
               ${canAbort ? "Stop" : "New session"}
             </button>
             ${
-              props.onEditModelSessionBinding
-                ? html`
-                    <button
-                      class="btn"
-                      ?disabled=${!props.connected || isBusy || props.modelSwitching}
-                      @click=${props.onEditModelSessionBinding}
-                      title="Edit model session binding"
-                    >
-                      Model session
-                    </button>
-                  `
-                : nothing
-            }
-            ${
               props.onModelChange
                 ? html`
                     <select
@@ -637,6 +650,7 @@ export function renderChat(props: ChatProps) {
                               ? "Started · Unbound"
                               : "Not started";
                       const canOperate = props.connected && !isBusy && !props.modelSwitching;
+                      const actionOptions = modelSessionActionsForStatus(item.status);
                       return html`
                         <div class="chat-model-sessions__row">
                           <div class="chat-model-sessions__meta">
@@ -646,59 +660,41 @@ export function renderChat(props: ChatProps) {
                             </div>
                           </div>
                           <div class="chat-model-sessions__actions">
-                            ${
-                              item.status === "unstarted"
-                                ? html`
-                                    <button
-                                      class="btn btn--xs"
-                                      ?disabled=${!canOperate}
-                                      @click=${() => props.onModelSessionStart?.(item.model)}
-                                    >
-                                      Start
-                                    </button>
-                                  `
-                                : nothing
-                            }
-                            ${
-                              item.status === "unbound"
-                                ? html`
-                                    <button
-                                      class="btn btn--xs"
-                                      ?disabled=${!canOperate}
-                                      @click=${() => props.onModelSessionBind?.(item.model)}
-                                    >
-                                      Bind
-                                    </button>
-                                    <button
-                                      class="btn btn--xs"
-                                      ?disabled=${!canOperate}
-                                      @click=${() => props.onModelSessionClose?.(item.model)}
-                                    >
-                                      Close
-                                    </button>
-                                  `
-                                : nothing
-                            }
-                            ${
-                              item.status === "bound-self"
-                                ? html`
-                                    <button
-                                      class="btn btn--xs"
-                                      ?disabled=${!canOperate}
-                                      @click=${() => props.onModelSessionUnbind?.(item.model)}
-                                    >
-                                      Unbind
-                                    </button>
-                                    <button
-                                      class="btn btn--xs"
-                                      ?disabled=${!canOperate}
-                                      @click=${() => props.onModelSessionClose?.(item.model)}
-                                    >
-                                      Close
-                                    </button>
-                                  `
-                                : nothing
-                            }
+                            <select
+                              class="chat-model-sessions__action-select"
+                              aria-label=${`Model session action ${item.model}`}
+                              ?disabled=${!canOperate || actionOptions.length === 0}
+                              @change=${(e: Event) => {
+                                const target = e.target as HTMLSelectElement;
+                                const action = target.value as ModelSessionAction;
+                                target.value = "";
+                                if (!action) {
+                                  return;
+                                }
+                                if (action === "start") {
+                                  props.onModelSessionStart?.(item.model);
+                                  return;
+                                }
+                                if (action === "bind") {
+                                  props.onModelSessionBind?.(item.model);
+                                  return;
+                                }
+                                if (action === "unbind") {
+                                  props.onModelSessionUnbind?.(item.model);
+                                  return;
+                                }
+                                props.onModelSessionClose?.(item.model);
+                              }}
+                            >
+                              <option value="" selected>
+                                ${actionOptions.length > 0 ? "Action" : "No actions"}
+                              </option>
+                              ${actionOptions.map(
+                                (action) => html`
+                                  <option value=${action}>${modelSessionActionLabel(action)}</option>
+                                `,
+                              )}
+                            </select>
                           </div>
                         </div>
                       `;

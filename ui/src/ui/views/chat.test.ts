@@ -318,32 +318,30 @@ describe("chat view", () => {
     expect(container.textContent).toContain("copilot-local/claude-opus-4.6");
   });
 
-  it("renders model session binding button and triggers callback", () => {
+  it("does not render a standalone model-session button", () => {
     const container = document.createElement("div");
-    const onEditModelSessionBinding = vi.fn();
     render(
       renderChat(
         createProps({
-          onEditModelSessionBinding,
+          modelSessionStates: [{ model: "opencode/gpt-5-nano", status: "unstarted" }],
         }),
       ),
       container,
     );
 
-    const button = Array.from(container.querySelectorAll("button")).find(
-      (btn) => btn.textContent?.trim() === "Model session",
+    const button = Array.from(container.querySelectorAll("button")).find((btn) =>
+      btn.textContent?.includes("Model session"),
     );
-    expect(button).not.toBeUndefined();
-    button?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    expect(onEditModelSessionBinding).toHaveBeenCalledTimes(1);
+    expect(button).toBeUndefined();
     expect(container.textContent).not.toContain("Copilot API");
   });
 
-  it("renders model session rows with start/bind/unbind actions", () => {
+  it("renders model session dropdown actions and triggers callbacks", () => {
     const container = document.createElement("div");
     const onModelSessionStart = vi.fn();
     const onModelSessionBind = vi.fn();
     const onModelSessionUnbind = vi.fn();
+    const onModelSessionClose = vi.fn();
     render(
       renderChat(
         createProps({
@@ -360,28 +358,70 @@ describe("chat view", () => {
           onModelSessionStart,
           onModelSessionBind,
           onModelSessionUnbind,
+          onModelSessionClose,
         }),
       ),
       container,
     );
 
     expect(container.textContent).toContain("Model sessions");
-    const startButton = Array.from(container.querySelectorAll("button")).find(
-      (btn) => btn.textContent?.trim() === "Start",
-    );
-    const bindButton = Array.from(container.querySelectorAll("button")).find(
-      (btn) => btn.textContent?.trim() === "Bind",
-    );
-    const unbindButton = Array.from(container.querySelectorAll("button")).find(
-      (btn) => btn.textContent?.trim() === "Unbind",
+    const actionSelects = Array.from(
+      container.querySelectorAll("select.chat-model-sessions__action-select"),
     );
 
-    startButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    bindButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    unbindButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    const selectForModel = (model: string) =>
+      actionSelects.find((select) =>
+        select.getAttribute("aria-label")?.includes(`Model session action ${model}`),
+      );
+
+    const startSelect = selectForModel("opencode/gpt-5-nano");
+    const bindSelect = selectForModel("opencode/big-pickle");
+    const unbindSelect = selectForModel("opencode/trinity-large-preview-free");
+
+    expect(startSelect).toBeDefined();
+    expect(bindSelect).toBeDefined();
+    expect(unbindSelect).toBeDefined();
+
+    if (!startSelect || !bindSelect || !unbindSelect) {
+      return;
+    }
+    startSelect.value = "start";
+    startSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    bindSelect.value = "bind";
+    bindSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    unbindSelect.value = "unbind";
+    unbindSelect.dispatchEvent(new Event("change", { bubbles: true }));
 
     expect(onModelSessionStart).toHaveBeenCalledWith("opencode/gpt-5-nano");
     expect(onModelSessionBind).toHaveBeenCalledWith("opencode/big-pickle");
     expect(onModelSessionUnbind).toHaveBeenCalledWith("opencode/trinity-large-preview-free");
+
+    bindSelect.value = "close";
+    bindSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    expect(onModelSessionClose).toHaveBeenCalledWith("opencode/big-pickle");
+  });
+
+  it("disables action dropdown for bound-other rows", () => {
+    const container = document.createElement("div");
+    render(
+      renderChat(
+        createProps({
+          modelSessionStates: [
+            {
+              model: "opencode/minimax-m2.5-free",
+              status: "bound-other",
+              sessionId: "sid-other",
+              boundKey: "agent:main:other",
+            },
+          ],
+        }),
+      ),
+      container,
+    );
+    const select = container.querySelector(
+      'select[aria-label="Model session action opencode/minimax-m2.5-free"]',
+    );
+    expect(select).not.toBeNull();
+    expect(select?.disabled).toBe(true);
   });
 });

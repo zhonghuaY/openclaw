@@ -366,10 +366,12 @@
     justify-content: flex-end;
   }
 
-  .chat-model-sessions__actions .btn {
+  .chat-model-sessions__action-select {
     height: 30px;
     min-height: 30px;
-    padding: 0 8px;
+    min-width: 132px;
+    max-width: 100%;
+    padding: 0 6px;
     font-size: 12px;
   }
 

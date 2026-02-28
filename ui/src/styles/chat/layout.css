@@ -413,11 +413,28 @@
   gap: 6px;
 }
 
-.chat-model-sessions__actions .btn {
+.chat-model-sessions__action-select {
   height: 28px;
   min-height: 28px;
-  padding: 0 10px;
+  min-width: 132px;
+  max-width: 200px;
+  padding: 0 8px;
+  border-radius: 8px;
+  border: 1px solid var(--input);
+  background: var(--card);
+  color: var(--text);
   font-size: 12px;
+}
+
+.chat-model-sessions__action-select:focus {
+  outline: none;
+  border-color: var(--ring);
+  box-shadow: var(--focus-ring);
+}
+
+.chat-model-sessions__action-select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 /* Chat controls - moved to content-header area, left aligned */

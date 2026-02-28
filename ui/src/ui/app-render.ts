@@ -128,29 +128,6 @@ function uniquePreserveOrder(values: string[]): string[] {
   return output;
 }
 
-function normalizeProviderIdForUi(provider: string): string {
-  const normalized = provider.trim().toLowerCase();
-  if (normalized === "z.ai" || normalized === "z-ai") {
-    return "zai";
-  }
-  if (normalized === "opencode-zen") {
-    return "opencode";
-  }
-  if (normalized === "qwen") {
-    return "qwen-portal";
-  }
-  if (normalized === "kimi-code") {
-    return "kimi-coding";
-  }
-  if (normalized === "bedrock" || normalized === "aws-bedrock") {
-    return "amazon-bedrock";
-  }
-  if (normalized === "bytedance" || normalized === "doubao") {
-    return "volcengine";
-  }
-  return normalized;
-}
-
 function normalizeModelSessionRefForUi(modelRef: string): string {
   return modelRef.trim().toLowerCase();
 }
@@ -1308,59 +1285,6 @@ export function renderApp(state: AppViewState) {
                     return;
                   }
                   void state.handleSendChat("/new", { restoreDraft: true });
-                },
-                onEditModelSessionBinding: () => {
-                  const activeSession =
-                    state.sessionsResult?.sessions?.find((row) => row.key === state.sessionKey) ??
-                    null;
-                  const suggestedProviderRaw =
-                    activeSession?.modelProvider?.trim() ||
-                    (activeSession?.model?.includes("/")
-                      ? activeSession.model.slice(0, activeSession.model.indexOf("/")).trim()
-                      : "") ||
-                    state.sessionsResult?.defaults?.modelProvider?.trim() ||
-                    "opencode";
-                  const providerInput = window.prompt(
-                    "Model session provider (e.g. opencode)",
-                    suggestedProviderRaw,
-                  );
-                  if (providerInput === null) {
-                    return;
-                  }
-                  const provider = normalizeProviderIdForUi(providerInput);
-                  if (!provider) {
-                    return;
-                  }
-                  const currentBinding =
-                    activeSession?.cliSessionIds?.[provider]?.trim() ||
-                    (provider === "claude-cli"
-                      ? activeSession?.claudeCliSessionId?.trim() || ""
-                      : "");
-                  const nextBindingRaw = window.prompt(
-                    `Backend model session id for ${provider} (empty to clear)`,
-                    currentBinding,
-                  );
-                  if (nextBindingRaw === null) {
-                    return;
-                  }
-                  const nextBinding = nextBindingRaw.trim();
-                  if (nextBinding === currentBinding) {
-                    return;
-                  }
-                  if (state.chatModelSwitching) {
-                    return;
-                  }
-                  state.chatModelSwitching = true;
-                  void (async () => {
-                    try {
-                      await patchSession(state, state.sessionKey, {
-                        cliProvider: provider,
-                        cliSessionId: nextBinding || null,
-                      });
-                    } finally {
-                      state.chatModelSwitching = false;
-                    }
-                  })();
                 },
                 showNewMessages: state.chatNewMessagesBelow && !state.chatManualRefreshInFlight,
                 onScrollToBottom: () => state.scrollToBottom(),
