@@ -351,30 +351,6 @@
     flex: 1;
   }
 
-  .chat-model-sessions__row {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 6px;
-  }
-
-  .chat-model-sessions__model,
-  .chat-model-sessions__status {
-    max-width: none;
-  }
-
-  .chat-model-sessions__actions {
-    justify-content: flex-end;
-  }
-
-  .chat-model-sessions__action-select {
-    height: 30px;
-    min-height: 30px;
-    min-width: 132px;
-    max-width: 100%;
-    padding: 0 6px;
-    font-size: 12px;
-  }
-
   /* Log stream */
   .log-stream {
     border-radius: var(--radius-md);

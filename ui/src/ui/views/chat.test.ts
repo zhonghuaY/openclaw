@@ -241,12 +241,12 @@ describe("chat view", () => {
 
     const select = container.querySelector('select[aria-label="Chat model"]');
     expect(select).not.toBeNull();
-    expect(select?.value).toBe("openai/gpt-4.1");
+    expect(select?.value).toBe("model:openai%2Fgpt-4.1");
 
     if (!select) {
       return;
     }
-    select.value = "openai/gpt-4.1-mini";
+    select.value = "model:openai%2Fgpt-4.1-mini";
     select.dispatchEvent(new Event("change", { bubbles: true }));
     expect(onModelChange).toHaveBeenCalledWith("openai/gpt-4.1-mini");
   });
@@ -333,10 +333,11 @@ describe("chat view", () => {
       btn.textContent?.includes("Model session"),
     );
     expect(button).toBeUndefined();
+    expect(container.textContent).not.toContain("Model sessions");
     expect(container.textContent).not.toContain("Copilot API");
   });
 
-  it("renders model session dropdown actions and triggers callbacks", () => {
+  it("exposes model session actions inside chat model dropdown", () => {
     const container = document.createElement("div");
     const onModelSessionStart = vi.fn();
     const onModelSessionBind = vi.fn();
@@ -345,6 +346,7 @@ describe("chat view", () => {
     render(
       renderChat(
         createProps({
+          onModelChange: () => undefined,
           modelSessionStates: [
             { model: "opencode/gpt-5-nano", status: "unstarted" },
             { model: "opencode/big-pickle", status: "unbound", sessionId: "sid-unbound" },
@@ -364,48 +366,48 @@ describe("chat view", () => {
       container,
     );
 
-    expect(container.textContent).toContain("Model sessions");
-    const actionSelects = Array.from(
-      container.querySelectorAll("select.chat-model-sessions__action-select"),
-    );
-
-    const selectForModel = (model: string) =>
-      actionSelects.find((select) =>
-        select.getAttribute("aria-label")?.includes(`Model session action ${model}`),
-      );
-
-    const startSelect = selectForModel("opencode/gpt-5-nano");
-    const bindSelect = selectForModel("opencode/big-pickle");
-    const unbindSelect = selectForModel("opencode/trinity-large-preview-free");
-
-    expect(startSelect).toBeDefined();
-    expect(bindSelect).toBeDefined();
-    expect(unbindSelect).toBeDefined();
-
-    if (!startSelect || !bindSelect || !unbindSelect) {
+    const modelSelect = container.querySelector('select[aria-label="Chat model"]');
+    expect(modelSelect).not.toBeNull();
+    if (!modelSelect) {
       return;
     }
-    startSelect.value = "start";
-    startSelect.dispatchEvent(new Event("change", { bubbles: true }));
-    bindSelect.value = "bind";
-    bindSelect.dispatchEvent(new Event("change", { bubbles: true }));
-    unbindSelect.value = "unbind";
-    unbindSelect.dispatchEvent(new Event("change", { bubbles: true }));
+
+    const labels = Array.from(modelSelect.querySelectorAll("optgroup")).map(
+      (group) => group.getAttribute("label") ?? "",
+    );
+    expect(labels).toContain("Session Actions");
+    const allOptionValues = Array.from(modelSelect.querySelectorAll("option")).map(
+      (option) => option.getAttribute("value") ?? "",
+    );
+    expect(allOptionValues).toContain("action:start:opencode%2Fgpt-5-nano");
+    expect(allOptionValues).toContain("action:bind:opencode%2Fbig-pickle");
+    expect(allOptionValues).toContain("action:unbind:opencode%2Ftrinity-large-preview-free");
+    expect(allOptionValues).toContain("action:close:opencode%2Fbig-pickle");
+
+    modelSelect.value = "action:start:opencode%2Fgpt-5-nano";
+    modelSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    modelSelect.value = "action:bind:opencode%2Fbig-pickle";
+    modelSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    modelSelect.value = "action:unbind:opencode%2Ftrinity-large-preview-free";
+    modelSelect.dispatchEvent(new Event("change", { bubbles: true }));
 
     expect(onModelSessionStart).toHaveBeenCalledWith("opencode/gpt-5-nano");
     expect(onModelSessionBind).toHaveBeenCalledWith("opencode/big-pickle");
     expect(onModelSessionUnbind).toHaveBeenCalledWith("opencode/trinity-large-preview-free");
 
-    bindSelect.value = "close";
-    bindSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    modelSelect.value = "action:close:opencode%2Fbig-pickle";
+    modelSelect.dispatchEvent(new Event("change", { bubbles: true }));
     expect(onModelSessionClose).toHaveBeenCalledWith("opencode/big-pickle");
+
+    expect(modelSelect.value).toBe("auto");
   });
 
-  it("disables action dropdown for bound-other rows", () => {
+  it("does not expose model session actions for bound-other rows", () => {
     const container = document.createElement("div");
     render(
       renderChat(
         createProps({
+          onModelChange: () => undefined,
           modelSessionStates: [
             {
               model: "opencode/minimax-m2.5-free",
@@ -418,10 +420,16 @@ describe("chat view", () => {
       ),
       container,
     );
-    const select = container.querySelector(
-      'select[aria-label="Model session action opencode/minimax-m2.5-free"]',
+    const modelSelect = container.querySelector('select[aria-label="Chat model"]');
+    expect(modelSelect).not.toBeNull();
+    if (!modelSelect) {
+      return;
+    }
+    const allOptionValues = Array.from(modelSelect.querySelectorAll("option")).map(
+      (option) => option.getAttribute("value") ?? "",
     );
-    expect(select).not.toBeNull();
-    expect(select?.disabled).toBe(true);
+    expect(allOptionValues.some((value) => value.includes("opencode%2Fminimax-m2.5-free"))).toBe(
+      false,
+    );
   });
 });

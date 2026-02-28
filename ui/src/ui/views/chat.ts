@@ -39,6 +39,11 @@ export type ModelSessionState = {
 };
 
 type ModelSessionAction = "start" | "bind" | "unbind" | "close";
+type ParsedModelSelectValue =
+  | { kind: "auto" }
+  | { kind: "model"; model: string }
+  | { kind: "action"; action: ModelSessionAction; model: string }
+  | { kind: "invalid" };
 
 export type ChatProps = {
   sessionKey: string;
@@ -294,6 +299,71 @@ function modelSessionActionLabel(action: ModelSessionAction): string {
   return "Close";
 }
 
+function modelSessionStatusLabel(item: ModelSessionState): string {
+  if (item.status === "bound-self") {
+    return "Bound";
+  }
+  if (item.status === "bound-other") {
+    return `Bound: ${item.boundKey ?? "other session"}`;
+  }
+  if (item.status === "unbound") {
+    return "Started · Unbound";
+  }
+  return "Not started";
+}
+
+function encodeModelSelectValue(model: string): string {
+  return `model:${encodeURIComponent(model)}`;
+}
+
+function encodeModelActionSelectValue(action: ModelSessionAction, model: string): string {
+  return `action:${action}:${encodeURIComponent(model)}`;
+}
+
+function parseModelSelectValue(raw: string): ParsedModelSelectValue {
+  const decodePart = (value: string): string => {
+    try {
+      return decodeURIComponent(value);
+    } catch {
+      return "";
+    }
+  };
+  const value = raw.trim();
+  if (!value || value === "auto") {
+    return { kind: "auto" };
+  }
+  if (value.startsWith("model:")) {
+    const encodedModel = value.slice("model:".length);
+    const model = decodePart(encodedModel).trim();
+    if (!model) {
+      return { kind: "invalid" };
+    }
+    return { kind: "model", model };
+  }
+  if (value.startsWith("action:")) {
+    const rest = value.slice("action:".length);
+    const separator = rest.indexOf(":");
+    if (separator <= 0) {
+      return { kind: "invalid" };
+    }
+    const actionRaw = rest.slice(0, separator).trim();
+    const model = decodePart(rest.slice(separator + 1)).trim();
+    if (!model) {
+      return { kind: "invalid" };
+    }
+    if (
+      actionRaw !== "start" &&
+      actionRaw !== "bind" &&
+      actionRaw !== "unbind" &&
+      actionRaw !== "close"
+    ) {
+      return { kind: "invalid" };
+    }
+    return { kind: "action", action: actionRaw, model };
+  }
+  return { kind: "invalid" };
+}
+
 export function renderChat(props: ChatProps) {
   const canCompose = props.connected;
   const isBusy = props.sending || props.stream !== null;
@@ -336,6 +406,13 @@ export function renderChat(props: ChatProps) {
   const modelSessionStates = [...(props.modelSessionStates ?? [])].toSorted((a, b) =>
     a.model.localeCompare(b.model),
   );
+  const modelSessionActionOptions = modelSessionStates.flatMap((item) =>
+    modelSessionActionsForStatus(item.status).map((action) => ({
+      value: encodeModelActionSelectValue(action, item.model),
+      label: `${modelSessionActionLabel(action)} · ${item.model} (${modelSessionStatusLabel(item)})`,
+    })),
+  );
+  const currentModelSelectValue = currentModel ? encodeModelSelectValue(currentModel) : "auto";
 
   const splitRatio = props.splitRatio ?? 0.6;
   const sidebarOpen = Boolean(props.sidebarOpen && props.onCloseSidebar);
@@ -557,11 +634,37 @@ export function renderChat(props: ChatProps) {
                       aria-label="Chat model"
                       ?disabled=${!props.connected || props.sending || props.modelSwitching}
                       @change=${(e: Event) => {
-                        const value = (e.target as HTMLSelectElement).value.trim();
-                        props.onModelChange?.(value || null);
+                        const target = e.target as HTMLSelectElement;
+                        const parsed = parseModelSelectValue(target.value);
+                        if (parsed.kind === "auto") {
+                          props.onModelChange?.(null);
+                          return;
+                        }
+                        if (parsed.kind === "model") {
+                          props.onModelChange?.(parsed.model);
+                          return;
+                        }
+                        if (parsed.kind === "action") {
+                          target.value = currentModelSelectValue;
+                          if (parsed.action === "start") {
+                            props.onModelSessionStart?.(parsed.model);
+                            return;
+                          }
+                          if (parsed.action === "bind") {
+                            props.onModelSessionBind?.(parsed.model);
+                            return;
+                          }
+                          if (parsed.action === "unbind") {
+                            props.onModelSessionUnbind?.(parsed.model);
+                            return;
+                          }
+                          props.onModelSessionClose?.(parsed.model);
+                          return;
+                        }
+                        target.value = currentModelSelectValue;
                       }}
                     >
-                      <option value="" ?selected=${!currentModel}>
+                      <option value="auto" ?selected=${!currentModel}>
                         ${defaultModel ? `Auto (${defaultModel})` : "Auto (default)"}
                       </option>
                       ${
@@ -573,7 +676,10 @@ export function renderChat(props: ChatProps) {
                                       <optgroup label="Connectable · Bound">
                                         ${connectableBoundModels.map(
                                           (model) => html`
-                                            <option value=${model} ?selected=${currentModel === model}>
+                                            <option
+                                              value=${encodeModelSelectValue(model)}
+                                              ?selected=${currentModel === model}
+                                            >
                                               ${model}
                                             </option>
                                           `,
@@ -588,7 +694,10 @@ export function renderChat(props: ChatProps) {
                                       <optgroup label="Connectable · Unbound">
                                         ${connectableUnboundModels.map(
                                           (model) => html`
-                                            <option value=${model} ?selected=${currentModel === model}>
+                                            <option
+                                              value=${encodeModelSelectValue(model)}
+                                              ?selected=${currentModel === model}
+                                            >
                                               ${model}
                                             </option>
                                           `,
@@ -603,7 +712,10 @@ export function renderChat(props: ChatProps) {
                                       <optgroup label="Bound · Currently Unavailable">
                                         ${boundUnavailableModels.map(
                                           (model) => html`
-                                            <option value=${model} ?selected=${currentModel === model}>
+                                            <option
+                                              value=${encodeModelSelectValue(model)}
+                                              ?selected=${currentModel === model}
+                                            >
                                               ${model}
                                             </option>
                                           `,
@@ -615,11 +727,27 @@ export function renderChat(props: ChatProps) {
                             `
                           : modelOptions.map(
                               (model) => html`
-                                <option value=${model} ?selected=${currentModel === model}>
+                                <option
+                                  value=${encodeModelSelectValue(model)}
+                                  ?selected=${currentModel === model}
+                                >
                                   ${model}
                                 </option>
                               `,
                             )
+                      }
+                      ${
+                        modelSessionActionOptions.length > 0
+                          ? html`
+                              <optgroup label="Session Actions">
+                                ${modelSessionActionOptions.map(
+                                  (option) => html`
+                                    <option value=${option.value}>${option.label}</option>
+                                  `,
+                                )}
+                              </optgroup>
+                            `
+                          : nothing
                       }
                     </select>
                   `
@@ -634,76 +762,6 @@ export function renderChat(props: ChatProps) {
             </button>
           </div>
         </div>
-        ${
-          modelSessionStates.length > 0
-            ? html`
-                <div class="chat-model-sessions">
-                  <div class="chat-model-sessions__title">Model sessions</div>
-                  <div class="chat-model-sessions__list">
-                    ${modelSessionStates.map((item) => {
-                      const label =
-                        item.status === "bound-self"
-                          ? "Bound"
-                          : item.status === "bound-other"
-                            ? `Bound: ${item.boundKey ?? "other session"}`
-                            : item.status === "unbound"
-                              ? "Started · Unbound"
-                              : "Not started";
-                      const canOperate = props.connected && !isBusy && !props.modelSwitching;
-                      const actionOptions = modelSessionActionsForStatus(item.status);
-                      return html`
-                        <div class="chat-model-sessions__row">
-                          <div class="chat-model-sessions__meta">
-                            <div class="chat-model-sessions__model">${item.model}</div>
-                            <div class="chat-model-sessions__status">
-                              ${label}${item.sessionId ? ` · ${item.sessionId}` : ""}
-                            </div>
-                          </div>
-                          <div class="chat-model-sessions__actions">
-                            <select
-                              class="chat-model-sessions__action-select"
-                              aria-label=${`Model session action ${item.model}`}
-                              ?disabled=${!canOperate || actionOptions.length === 0}
-                              @change=${(e: Event) => {
-                                const target = e.target as HTMLSelectElement;
-                                const action = target.value as ModelSessionAction;
-                                target.value = "";
-                                if (!action) {
-                                  return;
-                                }
-                                if (action === "start") {
-                                  props.onModelSessionStart?.(item.model);
-                                  return;
-                                }
-                                if (action === "bind") {
-                                  props.onModelSessionBind?.(item.model);
-                                  return;
-                                }
-                                if (action === "unbind") {
-                                  props.onModelSessionUnbind?.(item.model);
-                                  return;
-                                }
-                                props.onModelSessionClose?.(item.model);
-                              }}
-                            >
-                              <option value="" selected>
-                                ${actionOptions.length > 0 ? "Action" : "No actions"}
-                              </option>
-                              ${actionOptions.map(
-                                (action) => html`
-                                  <option value=${action}>${modelSessionActionLabel(action)}</option>
-                                `,
-                              )}
-                            </select>
-                          </div>
-                        </div>
-                      `;
-                    })}
-                  </div>
-                </div>
-              `
-            : nothing
-        }
       </div>
     </section>
   `;
