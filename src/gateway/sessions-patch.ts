@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { resolveDefaultAgentId } from "../agents/agent-scope.js";
 import type { ModelCatalogEntry } from "../agents/model-catalog.js";
 import {
+  normalizeProviderId,
   resolveAllowedModelRef,
   resolveDefaultModelForAgent,
   resolveSubagentConfiguredModelSelection,
@@ -60,6 +61,28 @@ function normalizeExecAsk(raw: string): "off" | "on-miss" | "always" | undefined
     return normalized;
   }
   return undefined;
+}
+
+function getProviderCliSessionId(entry: SessionEntry | undefined, provider: string): string {
+  if (!entry) {
+    return "";
+  }
+  const fromMap = entry.cliSessionIds?.[provider]?.trim() ?? "";
+  if (fromMap) {
+    return fromMap;
+  }
+  if (provider === "claude-cli") {
+    return entry.claudeCliSessionId?.trim() ?? "";
+  }
+  return "";
+}
+
+function normalizeModelSessionRef(raw: string): string | undefined {
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+  return trimmed.toLowerCase();
 }
 
 export async function applySessionsPatchToStore(params: {
@@ -328,6 +351,168 @@ export async function applySessionsPatchToStore(params: {
           isDefault,
         },
       });
+    }
+  }
+
+  if ("modelSessionModel" in patch || "modelSessionOp" in patch || "modelSessionId" in patch) {
+    const rawModelRef = typeof patch.modelSessionModel === "string" ? patch.modelSessionModel : "";
+    const modelSessionRef = normalizeModelSessionRef(rawModelRef);
+    if (!modelSessionRef) {
+      return invalid("modelSessionModel required");
+    }
+    const op = patch.modelSessionOp;
+    if (!op) {
+      return invalid("modelSessionOp required");
+    }
+    if (op === "bind" || op === "unbind") {
+      if (storeKey === "global") {
+        return invalid("modelSession bind/unbind requires a non-global session key");
+      }
+    }
+    const requestedSessionId =
+      typeof patch.modelSessionId === "string" ? patch.modelSessionId.trim() : undefined;
+    if ("modelSessionId" in patch && patch.modelSessionId !== null && !requestedSessionId) {
+      return invalid("invalid modelSessionId: empty");
+    }
+
+    const globalEntry: SessionEntry = store.global
+      ? {
+          ...store.global,
+          updatedAt: Math.max(store.global.updatedAt ?? 0, now),
+        }
+      : { sessionId: randomUUID(), updatedAt: now };
+    const nextRegistry = { ...globalEntry.modelSessions };
+    const current = nextRegistry[modelSessionRef];
+    const isSessionIdTaken = (sessionId: string, exceptModel: string) =>
+      Object.entries(nextRegistry).some(([modelRef, entry]) => {
+        if (modelRef === exceptModel) {
+          return false;
+        }
+        return (entry?.sessionId ?? "").trim() === sessionId;
+      });
+
+    if (op === "start") {
+      if (current) {
+        if (requestedSessionId && requestedSessionId !== current.sessionId) {
+          return invalid(`model session already started for ${modelSessionRef}`);
+        }
+      } else {
+        const sessionId = requestedSessionId || randomUUID();
+        if (isSessionIdTaken(sessionId, modelSessionRef)) {
+          return invalid(`modelSessionId already exists: ${sessionId}`);
+        }
+        nextRegistry[modelSessionRef] = {
+          sessionId,
+          updatedAt: now,
+        };
+      }
+    } else if (op === "bind") {
+      if (!current?.sessionId) {
+        return invalid(`model session not started: ${modelSessionRef}`);
+      }
+      if (requestedSessionId && requestedSessionId !== current.sessionId) {
+        return invalid(`modelSessionId mismatch for ${modelSessionRef}`);
+      }
+      if (current.boundKey && current.boundKey !== storeKey) {
+        return invalid(`model session already bound to ${current.boundKey}`);
+      }
+      nextRegistry[modelSessionRef] = {
+        ...current,
+        boundKey: storeKey,
+        updatedAt: now,
+      };
+    } else if (op === "unbind") {
+      if (!current?.sessionId) {
+        return invalid(`model session not started: ${modelSessionRef}`);
+      }
+      if (current.boundKey !== storeKey) {
+        return invalid(`model session is not bound to ${storeKey}`);
+      }
+      const rest = { ...current };
+      delete rest.boundKey;
+      nextRegistry[modelSessionRef] = {
+        ...rest,
+        updatedAt: now,
+      };
+    } else if (op === "close") {
+      if (!current?.sessionId) {
+        return invalid(`model session not started: ${modelSessionRef}`);
+      }
+      if (current.boundKey && current.boundKey !== storeKey && storeKey !== "global") {
+        return invalid(`model session is bound to ${current.boundKey}`);
+      }
+      delete nextRegistry[modelSessionRef];
+    }
+
+    if (Object.keys(nextRegistry).length === 0) {
+      delete globalEntry.modelSessions;
+    } else {
+      globalEntry.modelSessions = nextRegistry;
+    }
+
+    // Keep model-session updates when patching the "global" session itself.
+    if (storeKey === "global") {
+      if (globalEntry.modelSessions) {
+        next.modelSessions = globalEntry.modelSessions;
+      } else {
+        delete next.modelSessions;
+      }
+      next.updatedAt = Math.max(next.updatedAt ?? 0, globalEntry.updatedAt ?? now);
+      store.global = next;
+    } else {
+      store.global = globalEntry;
+    }
+  }
+
+  if ("cliProvider" in patch && !("cliSessionId" in patch)) {
+    return invalid("cliProvider requires cliSessionId");
+  }
+
+  if ("cliSessionId" in patch) {
+    const rawProvider =
+      typeof patch.cliProvider === "string" && patch.cliProvider.trim()
+        ? patch.cliProvider
+        : (next.providerOverride ?? next.modelProvider ?? resolvedDefault.provider);
+    const normalizedProvider = normalizeProviderId(String(rawProvider ?? ""));
+    if (!normalizedProvider) {
+      return invalid("invalid cliProvider: empty");
+    }
+
+    const rawCliSessionId = patch.cliSessionId;
+    if (rawCliSessionId === null) {
+      const nextCliSessionIds = { ...next.cliSessionIds };
+      delete nextCliSessionIds[normalizedProvider];
+      if (Object.keys(nextCliSessionIds).length === 0) {
+        delete next.cliSessionIds;
+      } else {
+        next.cliSessionIds = nextCliSessionIds;
+      }
+      if (normalizedProvider === "claude-cli") {
+        delete next.claudeCliSessionId;
+      }
+    } else if (rawCliSessionId !== undefined) {
+      const trimmedCliSessionId = String(rawCliSessionId).trim();
+      if (!trimmedCliSessionId) {
+        return invalid("invalid cliSessionId: empty");
+      }
+      for (const [candidateKey, candidateEntry] of Object.entries(store)) {
+        if (candidateKey === storeKey) {
+          continue;
+        }
+        const candidateCliSessionId = getProviderCliSessionId(candidateEntry, normalizedProvider);
+        if (candidateCliSessionId && candidateCliSessionId === trimmedCliSessionId) {
+          return invalid(
+            `cliSessionId already bound for provider ${normalizedProvider}: ${candidateKey}`,
+          );
+        }
+      }
+      next.cliSessionIds = {
+        ...next.cliSessionIds,
+        [normalizedProvider]: trimmedCliSessionId,
+      };
+      if (normalizedProvider === "claude-cli") {
+        next.claudeCliSessionId = trimmedCliSessionId;
+      }
     }
   }
 

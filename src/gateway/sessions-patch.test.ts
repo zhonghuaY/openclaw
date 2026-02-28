@@ -378,6 +378,203 @@ describe("gateway sessions patch", () => {
     expect(res.error.message).toContain("invalid groupActivation");
   });
 
+  test("manages model session lifecycle (start/bind/unbind/close)", async () => {
+    const store: Record<string, SessionEntry> = {
+      global: {
+        sessionId: "sess-global",
+        updatedAt: 1,
+      } as SessionEntry,
+    };
+
+    const started = await applySessionsPatchToStore({
+      cfg: {} as OpenClawConfig,
+      store,
+      storeKey: "agent:main:main",
+      patch: {
+        key: "agent:main:main",
+        modelSessionModel: "opencode/gpt-5-nano",
+        modelSessionOp: "start",
+      },
+    });
+    expect(started.ok).toBe(true);
+    if (!started.ok) {
+      return;
+    }
+    const startedSessionId = store.global?.modelSessions?.["opencode/gpt-5-nano"]?.sessionId;
+    expect(startedSessionId).toBeTruthy();
+
+    const bound = await applySessionsPatchToStore({
+      cfg: {} as OpenClawConfig,
+      store,
+      storeKey: "agent:main:main",
+      patch: {
+        key: "agent:main:main",
+        modelSessionModel: "opencode/gpt-5-nano",
+        modelSessionOp: "bind",
+      },
+    });
+    expect(bound.ok).toBe(true);
+    expect(store.global?.modelSessions?.["opencode/gpt-5-nano"]?.boundKey).toBe("agent:main:main");
+
+    const unbound = await applySessionsPatchToStore({
+      cfg: {} as OpenClawConfig,
+      store,
+      storeKey: "agent:main:main",
+      patch: {
+        key: "agent:main:main",
+        modelSessionModel: "opencode/gpt-5-nano",
+        modelSessionOp: "unbind",
+      },
+    });
+    expect(unbound.ok).toBe(true);
+    expect(store.global?.modelSessions?.["opencode/gpt-5-nano"]?.boundKey).toBeUndefined();
+
+    const closed = await applySessionsPatchToStore({
+      cfg: {} as OpenClawConfig,
+      store,
+      storeKey: "agent:main:main",
+      patch: {
+        key: "agent:main:main",
+        modelSessionModel: "opencode/gpt-5-nano",
+        modelSessionOp: "close",
+      },
+    });
+    expect(closed.ok).toBe(true);
+    expect(store.global?.modelSessions?.["opencode/gpt-5-nano"]).toBeUndefined();
+  });
+
+  test("persists model session lifecycle when patching global key", async () => {
+    const store: Record<string, SessionEntry> = {
+      global: {
+        sessionId: "sess-global",
+        updatedAt: 1,
+      } as SessionEntry,
+    };
+
+    const started = await applySessionsPatchToStore({
+      cfg: {} as OpenClawConfig,
+      store,
+      storeKey: "global",
+      patch: {
+        key: "global",
+        modelSessionModel: "copilot-api/gpt-4.1",
+        modelSessionOp: "start",
+      },
+    });
+    expect(started.ok).toBe(true);
+    if (!started.ok) {
+      return;
+    }
+    expect(started.entry.modelSessions?.["copilot-api/gpt-4.1"]?.sessionId).toBeTruthy();
+    expect(store.global?.modelSessions?.["copilot-api/gpt-4.1"]?.sessionId).toBeTruthy();
+  });
+
+  test("rejects model session bind when already bound to another session", async () => {
+    const store: Record<string, SessionEntry> = {
+      global: {
+        sessionId: "sess-global",
+        updatedAt: 1,
+        modelSessions: {
+          "opencode/gpt-5-nano": {
+            sessionId: "sid-001",
+            boundKey: "agent:main:work",
+          },
+        },
+      } as SessionEntry,
+    };
+
+    const res = await applySessionsPatchToStore({
+      cfg: {} as OpenClawConfig,
+      store,
+      storeKey: "agent:main:main",
+      patch: {
+        key: "agent:main:main",
+        modelSessionModel: "opencode/gpt-5-nano",
+        modelSessionOp: "bind",
+      },
+    });
+
+    expect(res.ok).toBe(false);
+    if (res.ok) {
+      return;
+    }
+    expect(res.error.message).toContain("already bound");
+  });
+
+  test("binds cliSessionId for provider and supports clearing it", async () => {
+    const store: Record<string, SessionEntry> = {
+      "agent:main:main": {
+        sessionId: "sess-main",
+        updatedAt: 1,
+        modelProvider: "opencode",
+      } as SessionEntry,
+    };
+
+    const bound = await applySessionsPatchToStore({
+      cfg: {} as OpenClawConfig,
+      store,
+      storeKey: "agent:main:main",
+      patch: {
+        key: "agent:main:main",
+        cliProvider: "opencode",
+        cliSessionId: "backend-sid-001",
+      },
+    });
+    expect(bound.ok).toBe(true);
+    if (!bound.ok) {
+      return;
+    }
+    expect(bound.entry.cliSessionIds?.opencode).toBe("backend-sid-001");
+
+    const cleared = await applySessionsPatchToStore({
+      cfg: {} as OpenClawConfig,
+      store,
+      storeKey: "agent:main:main",
+      patch: {
+        key: "agent:main:main",
+        cliProvider: "opencode",
+        cliSessionId: null,
+      },
+    });
+    expect(cleared.ok).toBe(true);
+    if (!cleared.ok) {
+      return;
+    }
+    expect(cleared.entry.cliSessionIds?.opencode).toBeUndefined();
+  });
+
+  test("rejects binding cliSessionId when another session already owns it", async () => {
+    const store: Record<string, SessionEntry> = {
+      "agent:main:main": {
+        sessionId: "sess-main",
+        updatedAt: 1,
+        modelProvider: "opencode",
+      } as SessionEntry,
+      "agent:main:work": {
+        sessionId: "sess-work",
+        updatedAt: 1,
+        cliSessionIds: { opencode: "backend-sid-dup" },
+      } as SessionEntry,
+    };
+
+    const res = await applySessionsPatchToStore({
+      cfg: {} as OpenClawConfig,
+      store,
+      storeKey: "agent:main:main",
+      patch: {
+        key: "agent:main:main",
+        cliProvider: "opencode",
+        cliSessionId: "backend-sid-dup",
+      },
+    });
+
+    expect(res.ok).toBe(false);
+    if (res.ok) {
+      return;
+    }
+    expect(res.error.message).toContain("already bound");
+  });
+
   test("allows target agent own model for subagent session even when missing from global allowlist", async () => {
     const cfg = makeKimiSubagentCfg({
       agentPrimaryModel: "synthetic/hf:moonshotai/Kimi-K2.5",
