@@ -70,6 +70,7 @@ export type AppViewState = {
   sessionKey: string;
   chatLoading: boolean;
   chatSending: boolean;
+  chatModelSwitching?: boolean;
   chatMessage: string;
   chatAttachments: ChatAttachment[];
   chatMessages: unknown[];

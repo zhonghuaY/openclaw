@@ -425,6 +425,24 @@ describe("gateway server sessions", () => {
     expect(modelPatched.payload?.entry.modelOverride).toBe("gpt-test-a");
     expect(modelPatched.payload?.entry.providerOverride).toBe("openai");
 
+    const cliSessionPatched = await rpcReq<{
+      ok: true;
+      entry: { cliSessionIds?: Record<string, string> };
+    }>(ws, "sessions.patch", {
+      key: "agent:main:main",
+      cliProvider: "opencode",
+      cliSessionId: "backend-sid-main",
+    });
+    expect(cliSessionPatched.ok).toBe(true);
+    expect(cliSessionPatched.payload?.entry.cliSessionIds?.opencode).toBe("backend-sid-main");
+
+    const duplicateCliSessionPatch = await rpcReq(ws, "sessions.patch", {
+      key: "agent:main:subagent:one",
+      cliProvider: "opencode",
+      cliSessionId: "backend-sid-main",
+    });
+    expect(duplicateCliSessionPatch.ok).toBe(false);
+
     const compacted = await rpcReq<{ ok: true; compacted: boolean }>(ws, "sessions.compact", {
       key: "agent:main:main",
       maxLines: 3,

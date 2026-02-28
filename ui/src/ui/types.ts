@@ -323,6 +323,7 @@ export type PresenceEntry = {
 
 export type GatewaySessionsDefaults = {
   model: string | null;
+  modelProvider?: string | null;
   contextTokens: number | null;
 };
 
@@ -431,6 +432,9 @@ export type GatewaySessionRow = {
   totalTokens?: number;
   model?: string;
   modelProvider?: string;
+  modelSessions?: Record<string, { sessionId: string; boundKey?: string; updatedAt?: number }>;
+  cliSessionIds?: Record<string, string>;
+  claudeCliSessionId?: string;
   contextTokens?: number;
 };
 

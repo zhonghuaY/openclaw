@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { deleteSession, deleteSessionAndRefresh, type SessionsState } from "./sessions.ts";
+import {
+  deleteSession,
+  deleteSessionAndRefresh,
+  patchSession,
+  type SessionsState,
+} from "./sessions.ts";
 
 type RequestFn = (method: string, params?: unknown) => Promise<unknown>;
 
@@ -100,5 +105,93 @@ describe("deleteSession", () => {
 
     expect(deleted).toBe(false);
     expect(request).not.toHaveBeenCalled();
+  });
+});
+
+describe("patchSession", () => {
+  it("sends model patch and refreshes sessions", async () => {
+    const request = vi.fn(async (method: string) => {
+      if (method === "sessions.patch") {
+        return { ok: true };
+      }
+      if (method === "sessions.list") {
+        return undefined;
+      }
+      throw new Error(`unexpected method: ${method}`);
+    });
+    const state = createState(request);
+
+    await patchSession(state, "agent:main:test", { model: "openai/gpt-4.1-mini" });
+
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(request).toHaveBeenNthCalledWith(1, "sessions.patch", {
+      key: "agent:main:test",
+      model: "openai/gpt-4.1-mini",
+    });
+    expect(request).toHaveBeenNthCalledWith(2, "sessions.list", {
+      includeGlobal: true,
+      includeUnknown: true,
+    });
+    expect(state.sessionsError).toBeNull();
+  });
+
+  it("sends cli session binding patch and refreshes sessions", async () => {
+    const request = vi.fn(async (method: string) => {
+      if (method === "sessions.patch") {
+        return { ok: true };
+      }
+      if (method === "sessions.list") {
+        return undefined;
+      }
+      throw new Error(`unexpected method: ${method}`);
+    });
+    const state = createState(request);
+
+    await patchSession(state, "agent:main:test", {
+      cliProvider: "opencode",
+      cliSessionId: "backend-sid-001",
+    });
+
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(request).toHaveBeenNthCalledWith(1, "sessions.patch", {
+      key: "agent:main:test",
+      cliProvider: "opencode",
+      cliSessionId: "backend-sid-001",
+    });
+    expect(request).toHaveBeenNthCalledWith(2, "sessions.list", {
+      includeGlobal: true,
+      includeUnknown: true,
+    });
+    expect(state.sessionsError).toBeNull();
+  });
+
+  it("sends model session lifecycle patch and refreshes sessions", async () => {
+    const request = vi.fn(async (method: string) => {
+      if (method === "sessions.patch") {
+        return { ok: true };
+      }
+      if (method === "sessions.list") {
+        return undefined;
+      }
+      throw new Error(`unexpected method: ${method}`);
+    });
+    const state = createState(request);
+
+    await patchSession(state, "agent:main:test", {
+      modelSessionModel: "opencode/gpt-5-nano",
+      modelSessionOp: "start",
+    });
+
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(request).toHaveBeenNthCalledWith(1, "sessions.patch", {
+      key: "agent:main:test",
+      modelSessionModel: "opencode/gpt-5-nano",
+      modelSessionOp: "start",
+    });
+    expect(request).toHaveBeenNthCalledWith(2, "sessions.list", {
+      includeGlobal: true,
+      includeUnknown: true,
+    });
+    expect(state.sessionsError).toBeNull();
   });
 });

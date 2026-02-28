@@ -1,6 +1,7 @@
 import { DEFAULT_CRON_FORM } from "../app-defaults.ts";
 import { toNumber } from "../format.ts";
 import type { GatewayBrowserClient } from "../gateway.ts";
+import { formatModelRef } from "../model-ref.ts";
 import type {
   CronJob,
   CronDeliveryStatus,
@@ -179,8 +180,8 @@ export async function loadCronModelSuggestions(state: CronModelSuggestionsState)
         if (!entry || typeof entry !== "object") {
           return "";
         }
-        const id = (entry as { id?: unknown }).id;
-        return typeof id === "string" ? id.trim() : "";
+        const modelEntry = entry as { id?: unknown; provider?: unknown };
+        return formatModelRef(modelEntry.provider, modelEntry.id);
       })
       .filter(Boolean);
     state.cronModelSuggestions = Array.from(new Set(ids)).toSorted((a, b) => a.localeCompare(b));

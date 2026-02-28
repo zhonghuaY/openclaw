@@ -31,6 +31,13 @@ export type FallbackIndicatorStatus = {
   occurredAt: number;
 };
 
+export type ModelSessionState = {
+  model: string;
+  sessionId?: string;
+  boundKey?: string;
+  status: "unstarted" | "unbound" | "bound-self" | "bound-other";
+};
+
 export type ChatProps = {
   sessionKey: string;
   onSessionKeyChange: (next: string) => void;
@@ -53,6 +60,13 @@ export type ChatProps = {
   disabledReason: string | null;
   error: string | null;
   sessions: SessionsListResult | null;
+  modelOptions?: string[];
+  connectableModelOptions?: string[];
+  boundModelOptions?: string[];
+  modelSessionStates?: ModelSessionState[];
+  selectedModel?: string | null;
+  defaultModel?: string | null;
+  modelSwitching?: boolean;
   // Focus mode
   focusMode: boolean;
   // Sidebar state
@@ -73,6 +87,12 @@ export type ChatProps = {
   onToggleFocusMode: () => void;
   onDraftChange: (next: string) => void;
   onSend: () => void;
+  onModelChange?: (model: string | null) => void;
+  onEditModelSessionBinding?: () => void;
+  onModelSessionStart?: (model: string) => void;
+  onModelSessionBind?: (model: string) => void;
+  onModelSessionUnbind?: (model: string) => void;
+  onModelSessionClose?: (model: string) => void;
   onAbort?: () => void;
   onQueueRemove: (id: string) => void;
   onNewSession: () => void;
@@ -237,6 +257,16 @@ function renderAttachmentPreview(props: ChatProps) {
   `;
 }
 
+function normalizeModelKey(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function uniqueSortedModels(values: string[]): string[] {
+  return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean))).toSorted((a, b) =>
+    a.localeCompare(b),
+  );
+}
+
 export function renderChat(props: ChatProps) {
   const canCompose = props.connected;
   const isBusy = props.sending || props.stream !== null;
@@ -255,6 +285,30 @@ export function renderChat(props: ChatProps) {
       ? "Add a message or paste more images..."
       : "Message (↩ to send, Shift+↩ for line breaks, paste images)"
     : "Connect to the gateway to start chatting…";
+  const currentModel = (props.selectedModel ?? activeSession?.model ?? "").trim();
+  const defaultModel = (props.defaultModel ?? props.sessions?.defaults?.model ?? "").trim();
+  const modelOptions = uniqueSortedModels([
+    ...(props.modelOptions ?? []),
+    currentModel,
+    defaultModel,
+  ]);
+  const connectableModelOptions = uniqueSortedModels(props.connectableModelOptions ?? []);
+  const hasConnectableCatalog = connectableModelOptions.length > 0;
+  const boundModelOptions = uniqueSortedModels([...(props.boundModelOptions ?? []), currentModel]);
+  const connectableModelKeys = new Set(connectableModelOptions.map(normalizeModelKey));
+  const boundModelKeys = new Set(boundModelOptions.map(normalizeModelKey));
+  const connectableBoundModels = connectableModelOptions.filter((model) =>
+    boundModelKeys.has(normalizeModelKey(model)),
+  );
+  const connectableUnboundModels = connectableModelOptions.filter(
+    (model) => !boundModelKeys.has(normalizeModelKey(model)),
+  );
+  const boundUnavailableModels = boundModelOptions.filter(
+    (model) => !connectableModelKeys.has(normalizeModelKey(model)),
+  );
+  const modelSessionStates = [...(props.modelSessionStates ?? [])].toSorted((a, b) =>
+    a.model.localeCompare(b.model),
+  );
 
   const splitRatio = props.splitRatio ?? 0.6;
   const sidebarOpen = Boolean(props.sidebarOpen && props.onCloseSidebar);
@@ -443,6 +497,9 @@ export function renderChat(props: ChatProps) {
                 if (!props.connected) {
                   return;
                 }
+                if (!props.canSend) {
+                  return;
+                }
                 e.preventDefault();
                 if (canCompose) {
                   props.onSend();
@@ -465,15 +522,192 @@ export function renderChat(props: ChatProps) {
             >
               ${canAbort ? "Stop" : "New session"}
             </button>
+            ${
+              props.onEditModelSessionBinding
+                ? html`
+                    <button
+                      class="btn"
+                      ?disabled=${!props.connected || isBusy || props.modelSwitching}
+                      @click=${props.onEditModelSessionBinding}
+                      title="Edit model session binding"
+                    >
+                      Model session
+                    </button>
+                  `
+                : nothing
+            }
+            ${
+              props.onModelChange
+                ? html`
+                    <select
+                      class="chat-compose__model-select"
+                      aria-label="Chat model"
+                      ?disabled=${!props.connected || props.sending || props.modelSwitching}
+                      @change=${(e: Event) => {
+                        const value = (e.target as HTMLSelectElement).value.trim();
+                        props.onModelChange?.(value || null);
+                      }}
+                    >
+                      <option value="" ?selected=${!currentModel}>
+                        ${defaultModel ? `Auto (${defaultModel})` : "Auto (default)"}
+                      </option>
+                      ${
+                        hasConnectableCatalog
+                          ? html`
+                              ${
+                                connectableBoundModels.length > 0
+                                  ? html`
+                                      <optgroup label="Connectable · Bound">
+                                        ${connectableBoundModels.map(
+                                          (model) => html`
+                                            <option value=${model} ?selected=${currentModel === model}>
+                                              ${model}
+                                            </option>
+                                          `,
+                                        )}
+                                      </optgroup>
+                                    `
+                                  : nothing
+                              }
+                              ${
+                                connectableUnboundModels.length > 0
+                                  ? html`
+                                      <optgroup label="Connectable · Unbound">
+                                        ${connectableUnboundModels.map(
+                                          (model) => html`
+                                            <option value=${model} ?selected=${currentModel === model}>
+                                              ${model}
+                                            </option>
+                                          `,
+                                        )}
+                                      </optgroup>
+                                    `
+                                  : nothing
+                              }
+                              ${
+                                boundUnavailableModels.length > 0
+                                  ? html`
+                                      <optgroup label="Bound · Currently Unavailable">
+                                        ${boundUnavailableModels.map(
+                                          (model) => html`
+                                            <option value=${model} ?selected=${currentModel === model}>
+                                              ${model}
+                                            </option>
+                                          `,
+                                        )}
+                                      </optgroup>
+                                    `
+                                  : nothing
+                              }
+                            `
+                          : modelOptions.map(
+                              (model) => html`
+                                <option value=${model} ?selected=${currentModel === model}>
+                                  ${model}
+                                </option>
+                              `,
+                            )
+                      }
+                    </select>
+                  `
+                : nothing
+            }
             <button
               class="btn primary"
-              ?disabled=${!props.connected}
+              ?disabled=${!props.connected || !props.canSend}
               @click=${props.onSend}
             >
               ${isBusy ? "Queue" : "Send"}<kbd class="btn-kbd">↵</kbd>
             </button>
           </div>
         </div>
+        ${
+          modelSessionStates.length > 0
+            ? html`
+                <div class="chat-model-sessions">
+                  <div class="chat-model-sessions__title">Model sessions</div>
+                  <div class="chat-model-sessions__list">
+                    ${modelSessionStates.map((item) => {
+                      const label =
+                        item.status === "bound-self"
+                          ? "Bound"
+                          : item.status === "bound-other"
+                            ? `Bound: ${item.boundKey ?? "other session"}`
+                            : item.status === "unbound"
+                              ? "Started · Unbound"
+                              : "Not started";
+                      const canOperate = props.connected && !isBusy && !props.modelSwitching;
+                      return html`
+                        <div class="chat-model-sessions__row">
+                          <div class="chat-model-sessions__meta">
+                            <div class="chat-model-sessions__model">${item.model}</div>
+                            <div class="chat-model-sessions__status">
+                              ${label}${item.sessionId ? ` · ${item.sessionId}` : ""}
+                            </div>
+                          </div>
+                          <div class="chat-model-sessions__actions">
+                            ${
+                              item.status === "unstarted"
+                                ? html`
+                                    <button
+                                      class="btn btn--xs"
+                                      ?disabled=${!canOperate}
+                                      @click=${() => props.onModelSessionStart?.(item.model)}
+                                    >
+                                      Start
+                                    </button>
+                                  `
+                                : nothing
+                            }
+                            ${
+                              item.status === "unbound"
+                                ? html`
+                                    <button
+                                      class="btn btn--xs"
+                                      ?disabled=${!canOperate}
+                                      @click=${() => props.onModelSessionBind?.(item.model)}
+                                    >
+                                      Bind
+                                    </button>
+                                    <button
+                                      class="btn btn--xs"
+                                      ?disabled=${!canOperate}
+                                      @click=${() => props.onModelSessionClose?.(item.model)}
+                                    >
+                                      Close
+                                    </button>
+                                  `
+                                : nothing
+                            }
+                            ${
+                              item.status === "bound-self"
+                                ? html`
+                                    <button
+                                      class="btn btn--xs"
+                                      ?disabled=${!canOperate}
+                                      @click=${() => props.onModelSessionUnbind?.(item.model)}
+                                    >
+                                      Unbind
+                                    </button>
+                                    <button
+                                      class="btn btn--xs"
+                                      ?disabled=${!canOperate}
+                                      @click=${() => props.onModelSessionClose?.(item.model)}
+                                    >
+                                      Close
+                                    </button>
+                                  `
+                                : nothing
+                            }
+                          </div>
+                        </div>
+                      `;
+                    })}
+                  </div>
+                </div>
+              `
+            : nothing
+        }
       </div>
     </section>
   `;

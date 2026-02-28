@@ -224,4 +224,164 @@ describe("chat view", () => {
     expect(onNewSession).toHaveBeenCalledTimes(1);
     expect(container.textContent).not.toContain("Stop");
   });
+
+  it("renders model selector and triggers change callback", () => {
+    const container = document.createElement("div");
+    const onModelChange = vi.fn();
+    render(
+      renderChat(
+        createProps({
+          modelOptions: ["openai/gpt-4.1", "openai/gpt-4.1-mini"],
+          selectedModel: "openai/gpt-4.1",
+          onModelChange,
+        }),
+      ),
+      container,
+    );
+
+    const select = container.querySelector('select[aria-label="Chat model"]');
+    expect(select).not.toBeNull();
+    expect(select?.value).toBe("openai/gpt-4.1");
+
+    if (!select) {
+      return;
+    }
+    select.value = "openai/gpt-4.1-mini";
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+    expect(onModelChange).toHaveBeenCalledWith("openai/gpt-4.1-mini");
+  });
+
+  it("does not trigger send on Enter when sending is disabled", () => {
+    const container = document.createElement("div");
+    const onSend = vi.fn();
+    render(
+      renderChat(
+        createProps({
+          canSend: false,
+          onSend,
+        }),
+      ),
+      container,
+    );
+
+    const textarea = container.querySelector("textarea");
+    expect(textarea).not.toBeNull();
+    textarea?.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    expect(onSend).not.toHaveBeenCalled();
+  });
+
+  it("disables model selector while model switch is in progress", () => {
+    const container = document.createElement("div");
+    render(
+      renderChat(
+        createProps({
+          modelOptions: ["opencode/big-pickle"],
+          selectedModel: "opencode/big-pickle",
+          modelSwitching: true,
+          onModelChange: () => undefined,
+        }),
+      ),
+      container,
+    );
+
+    const select = container.querySelector('select[aria-label="Chat model"]');
+    expect(select?.disabled).toBe(true);
+  });
+
+  it("groups model options by connectable and binding state", () => {
+    const container = document.createElement("div");
+    render(
+      renderChat(
+        createProps({
+          modelOptions: [
+            "opencode/big-pickle",
+            "opencode/gpt-5-nano",
+            "copilot-local/claude-opus-4.6",
+          ],
+          connectableModelOptions: ["opencode/big-pickle", "opencode/gpt-5-nano"],
+          boundModelOptions: ["opencode/big-pickle", "copilot-local/claude-opus-4.6"],
+          selectedModel: "opencode/big-pickle",
+          onModelChange: () => undefined,
+        }),
+      ),
+      container,
+    );
+
+    const labels = Array.from(container.querySelectorAll("optgroup")).map(
+      (group) => group.getAttribute("label") ?? "",
+    );
+    expect(labels).toContain("Connectable · Bound");
+    expect(labels).toContain("Connectable · Unbound");
+    expect(labels).toContain("Bound · Currently Unavailable");
+    expect(container.textContent).toContain("opencode/big-pickle");
+    expect(container.textContent).toContain("opencode/gpt-5-nano");
+    expect(container.textContent).toContain("copilot-local/claude-opus-4.6");
+  });
+
+  it("renders model session binding button and triggers callback", () => {
+    const container = document.createElement("div");
+    const onEditModelSessionBinding = vi.fn();
+    render(
+      renderChat(
+        createProps({
+          onEditModelSessionBinding,
+        }),
+      ),
+      container,
+    );
+
+    const button = Array.from(container.querySelectorAll("button")).find(
+      (btn) => btn.textContent?.trim() === "Model session",
+    );
+    expect(button).not.toBeUndefined();
+    button?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(onEditModelSessionBinding).toHaveBeenCalledTimes(1);
+    expect(container.textContent).not.toContain("Copilot API");
+  });
+
+  it("renders model session rows with start/bind/unbind actions", () => {
+    const container = document.createElement("div");
+    const onModelSessionStart = vi.fn();
+    const onModelSessionBind = vi.fn();
+    const onModelSessionUnbind = vi.fn();
+    render(
+      renderChat(
+        createProps({
+          modelSessionStates: [
+            { model: "opencode/gpt-5-nano", status: "unstarted" },
+            { model: "opencode/big-pickle", status: "unbound", sessionId: "sid-unbound" },
+            {
+              model: "opencode/trinity-large-preview-free",
+              status: "bound-self",
+              sessionId: "sid-bound",
+              boundKey: "main",
+            },
+          ],
+          onModelSessionStart,
+          onModelSessionBind,
+          onModelSessionUnbind,
+        }),
+      ),
+      container,
+    );
+
+    expect(container.textContent).toContain("Model sessions");
+    const startButton = Array.from(container.querySelectorAll("button")).find(
+      (btn) => btn.textContent?.trim() === "Start",
+    );
+    const bindButton = Array.from(container.querySelectorAll("button")).find(
+      (btn) => btn.textContent?.trim() === "Bind",
+    );
+    const unbindButton = Array.from(container.querySelectorAll("button")).find(
+      (btn) => btn.textContent?.trim() === "Unbind",
+    );
+
+    startButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    bindButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    unbindButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+    expect(onModelSessionStart).toHaveBeenCalledWith("opencode/gpt-5-nano");
+    expect(onModelSessionBind).toHaveBeenCalledWith("opencode/big-pickle");
+    expect(onModelSessionUnbind).toHaveBeenCalledWith("opencode/trinity-large-preview-free");
+  });
 });

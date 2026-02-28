@@ -69,6 +69,7 @@ import {
 } from "./controllers/skills.ts";
 import { buildExternalLinkRel, EXTERNAL_LINK_TARGET } from "./external-link.ts";
 import { icons } from "./icons.ts";
+import { formatModelRef } from "./model-ref.ts";
 import { normalizeBasePath, TAB_GROUPS, subtitleForTab, titleForTab } from "./navigation.ts";
 import { renderAgents } from "./views/agents.ts";
 import { renderChannels } from "./views/channels.ts";
@@ -87,6 +88,8 @@ import { renderSkills } from "./views/skills.ts";
 
 const AVATAR_DATA_RE = /^data:/i;
 const AVATAR_HTTP_RE = /^https?:\/\//i;
+const NOTE_X_URL_STORAGE_KEY = "openclaw.control.notex.url";
+const DEFAULT_NOTE_X_URL = "https://tdx-trading-view.myaddr.io:180/";
 const CRON_THINKING_SUGGESTIONS = ["off", "minimal", "low", "medium", "high"];
 const CRON_TIMEZONE_SUGGESTIONS = [
   "UTC",
@@ -125,6 +128,33 @@ function uniquePreserveOrder(values: string[]): string[] {
   return output;
 }
 
+function normalizeProviderIdForUi(provider: string): string {
+  const normalized = provider.trim().toLowerCase();
+  if (normalized === "z.ai" || normalized === "z-ai") {
+    return "zai";
+  }
+  if (normalized === "opencode-zen") {
+    return "opencode";
+  }
+  if (normalized === "qwen") {
+    return "qwen-portal";
+  }
+  if (normalized === "kimi-code") {
+    return "kimi-coding";
+  }
+  if (normalized === "bedrock" || normalized === "aws-bedrock") {
+    return "amazon-bedrock";
+  }
+  if (normalized === "bytedance" || normalized === "doubao") {
+    return "volcengine";
+  }
+  return normalized;
+}
+
+function normalizeModelSessionRefForUi(modelRef: string): string {
+  return modelRef.trim().toLowerCase();
+}
+
 function resolveAssistantAvatarUrl(state: AppViewState): string | undefined {
   const list = state.agentsList?.agents ?? [];
   const parsed = parseAgentSessionKey(state.sessionKey);
@@ -139,6 +169,47 @@ function resolveAssistantAvatarUrl(state: AppViewState): string | undefined {
     return candidate;
   }
   return identity?.avatarUrl;
+}
+
+function normalizeNoteXUrl(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    return null;
+  }
+  if (trimmed.startsWith("/")) {
+    return trimmed.replace(/\/+$/, "") + "/";
+  }
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return null;
+    }
+    parsed.hash = "";
+    return parsed.toString().replace(/\/+$/, "") + "/";
+  } catch {
+    return null;
+  }
+}
+
+function resolveNoteXUrl(basePath: string): string {
+  if (typeof window === "undefined") {
+    return DEFAULT_NOTE_X_URL;
+  }
+  const params = new URLSearchParams(window.location.search);
+  const queryValue = normalizeNoteXUrl(params.get("notexUrl") ?? "");
+  if (queryValue) {
+    localStorage.setItem(NOTE_X_URL_STORAGE_KEY, queryValue);
+    return queryValue;
+  }
+  const storedValue = normalizeNoteXUrl(localStorage.getItem(NOTE_X_URL_STORAGE_KEY) ?? "");
+  if (storedValue) {
+    return storedValue;
+  }
+  const defaultValue = normalizeNoteXUrl(DEFAULT_NOTE_X_URL);
+  if (defaultValue) {
+    return defaultValue;
+  }
+  return basePath ? `${basePath}/notex/` : "/notex/";
 }
 
 export function renderApp(state: AppViewState) {
@@ -160,11 +231,81 @@ export function renderApp(state: AppViewState) {
   const isChat = state.tab === "chat";
   const chatFocus = isChat && (state.settings.chatFocusMode || state.onboarding);
   const showThinking = state.onboarding ? false : state.settings.chatShowThinking;
+  const activeChatSession = state.sessionsResult?.sessions?.find(
+    (row) => row.key === state.sessionKey,
+  );
+  const activeChatModel = formatModelRef(
+    activeChatSession?.modelProvider,
+    activeChatSession?.model,
+  );
+  const defaultChatModel = formatModelRef(
+    state.sessionsResult?.defaults?.modelProvider,
+    state.sessionsResult?.defaults?.model,
+  );
+  const connectableChatModels = Array.from(
+    new Set(state.cronModelSuggestions.map((value) => value.trim()).filter(Boolean)),
+  ).toSorted((a, b) => a.localeCompare(b));
+  const boundChatModels = Array.from(
+    new Set(
+      (state.sessionsResult?.sessions ?? [])
+        .map((row) => formatModelRef(row.modelProvider, row.model))
+        .map((value) => value.trim())
+        .filter(Boolean),
+    ),
+  ).toSorted((a, b) => a.localeCompare(b));
+  const chatModelOptions = Array.from(
+    new Set(
+      [...connectableChatModels, ...boundChatModels, activeChatModel, defaultChatModel]
+        .map((value) => value.trim())
+        .filter(Boolean),
+    ),
+  ).toSorted((a, b) => a.localeCompare(b));
+  const globalSessionRow = state.sessionsResult?.sessions?.find((row) => row.key === "global");
+  const globalModelSessions = globalSessionRow?.modelSessions ?? {};
+  const chatModelSessionModels = Array.from(
+    new Set(
+      [...chatModelOptions, ...Object.keys(globalModelSessions)]
+        .map((value) => value.trim())
+        .filter(Boolean),
+    ),
+  ).toSorted((a, b) => a.localeCompare(b));
+  const chatModelSessionStates = chatModelSessionModels.map((model) => {
+    const key = normalizeModelSessionRefForUi(model);
+    const entry = globalModelSessions[key];
+    if (!entry?.sessionId) {
+      return {
+        model,
+        status: "unstarted" as const,
+      };
+    }
+    if (!entry.boundKey) {
+      return {
+        model,
+        sessionId: entry.sessionId,
+        status: "unbound" as const,
+      };
+    }
+    if (entry.boundKey === state.sessionKey) {
+      return {
+        model,
+        sessionId: entry.sessionId,
+        boundKey: entry.boundKey,
+        status: "bound-self" as const,
+      };
+    }
+    return {
+      model,
+      sessionId: entry.sessionId,
+      boundKey: entry.boundKey,
+      status: "bound-other" as const,
+    };
+  });
   const assistantAvatarUrl = resolveAssistantAvatarUrl(state);
   const chatAvatarUrl = state.chatAvatarUrl ?? assistantAvatarUrl ?? null;
   const configValue =
     state.configForm ?? (state.configSnapshot?.config as Record<string, unknown> | null);
   const basePath = normalizeBasePath(state.basePath ?? "");
+  const noteXUrl = resolveNoteXUrl(basePath);
   const resolvedAgentId =
     state.agentsSelectedId ??
     state.agentsList?.defaultId ??
@@ -1004,7 +1145,7 @@ export function renderApp(state: AppViewState) {
           state.tab === "notex"
             ? html`
                 <div style="width: 100%; height: calc(100vh - var(--shell-topbar-height, 56px)); overflow: hidden">
-                  <iframe src="/notex/" style="width: 100%; height: 100%; border: none" title="NoteX"></iframe>
+                  <iframe src=${noteXUrl} style="width: 100%; height: 100%; border: none" title="NoteX"></iframe>
                 </div>
               `
             : nothing
@@ -1047,10 +1188,17 @@ export function renderApp(state: AppViewState) {
                 draft: state.chatMessage,
                 queue: state.chatQueue,
                 connected: state.connected,
-                canSend: state.connected,
+                canSend: state.connected && !state.chatModelSwitching,
                 disabledReason: chatDisabledReason,
                 error: state.lastError,
                 sessions: state.sessionsResult,
+                modelOptions: chatModelOptions,
+                connectableModelOptions: connectableChatModels,
+                boundModelOptions: boundChatModels,
+                modelSessionStates: chatModelSessionStates,
+                selectedModel: activeChatModel || null,
+                defaultModel: defaultChatModel || null,
+                modelSwitching: state.chatModelSwitching,
                 focusMode: chatFocus,
                 onRefresh: () => {
                   state.resetToolStream();
@@ -1069,11 +1217,151 @@ export function renderApp(state: AppViewState) {
                 onDraftChange: (next) => (state.chatMessage = next),
                 attachments: state.chatAttachments,
                 onAttachmentsChange: (next) => (state.chatAttachments = next),
-                onSend: () => state.handleSendChat(),
+                onModelChange: (model) => {
+                  if (state.chatModelSwitching) {
+                    return;
+                  }
+                  state.chatModelSwitching = true;
+                  void (async () => {
+                    try {
+                      await patchSession(state, state.sessionKey, { model });
+                    } finally {
+                      state.chatModelSwitching = false;
+                    }
+                  })();
+                },
+                onModelSessionStart: (model) => {
+                  if (state.chatModelSwitching) {
+                    return;
+                  }
+                  state.chatModelSwitching = true;
+                  void (async () => {
+                    try {
+                      await patchSession(state, "global", {
+                        modelSessionModel: model,
+                        modelSessionOp: "start",
+                      });
+                    } finally {
+                      state.chatModelSwitching = false;
+                    }
+                  })();
+                },
+                onModelSessionBind: (model) => {
+                  if (state.chatModelSwitching) {
+                    return;
+                  }
+                  state.chatModelSwitching = true;
+                  void (async () => {
+                    try {
+                      await patchSession(state, state.sessionKey, {
+                        modelSessionModel: model,
+                        modelSessionOp: "bind",
+                      });
+                    } finally {
+                      state.chatModelSwitching = false;
+                    }
+                  })();
+                },
+                onModelSessionUnbind: (model) => {
+                  if (state.chatModelSwitching) {
+                    return;
+                  }
+                  state.chatModelSwitching = true;
+                  void (async () => {
+                    try {
+                      await patchSession(state, state.sessionKey, {
+                        modelSessionModel: model,
+                        modelSessionOp: "unbind",
+                      });
+                    } finally {
+                      state.chatModelSwitching = false;
+                    }
+                  })();
+                },
+                onModelSessionClose: (model) => {
+                  if (state.chatModelSwitching) {
+                    return;
+                  }
+                  state.chatModelSwitching = true;
+                  void (async () => {
+                    try {
+                      await patchSession(state, state.sessionKey, {
+                        modelSessionModel: model,
+                        modelSessionOp: "close",
+                      });
+                    } finally {
+                      state.chatModelSwitching = false;
+                    }
+                  })();
+                },
+                onSend: () => {
+                  if (state.chatModelSwitching) {
+                    return;
+                  }
+                  void state.handleSendChat();
+                },
                 canAbort: Boolean(state.chatRunId),
                 onAbort: () => void state.handleAbortChat(),
                 onQueueRemove: (id) => state.removeQueuedMessage(id),
-                onNewSession: () => state.handleSendChat("/new", { restoreDraft: true }),
+                onNewSession: () => {
+                  if (state.chatModelSwitching) {
+                    return;
+                  }
+                  void state.handleSendChat("/new", { restoreDraft: true });
+                },
+                onEditModelSessionBinding: () => {
+                  const activeSession =
+                    state.sessionsResult?.sessions?.find((row) => row.key === state.sessionKey) ??
+                    null;
+                  const suggestedProviderRaw =
+                    activeSession?.modelProvider?.trim() ||
+                    (activeSession?.model?.includes("/")
+                      ? activeSession.model.slice(0, activeSession.model.indexOf("/")).trim()
+                      : "") ||
+                    state.sessionsResult?.defaults?.modelProvider?.trim() ||
+                    "opencode";
+                  const providerInput = window.prompt(
+                    "Model session provider (e.g. opencode)",
+                    suggestedProviderRaw,
+                  );
+                  if (providerInput === null) {
+                    return;
+                  }
+                  const provider = normalizeProviderIdForUi(providerInput);
+                  if (!provider) {
+                    return;
+                  }
+                  const currentBinding =
+                    activeSession?.cliSessionIds?.[provider]?.trim() ||
+                    (provider === "claude-cli"
+                      ? activeSession?.claudeCliSessionId?.trim() || ""
+                      : "");
+                  const nextBindingRaw = window.prompt(
+                    `Backend model session id for ${provider} (empty to clear)`,
+                    currentBinding,
+                  );
+                  if (nextBindingRaw === null) {
+                    return;
+                  }
+                  const nextBinding = nextBindingRaw.trim();
+                  if (nextBinding === currentBinding) {
+                    return;
+                  }
+                  if (state.chatModelSwitching) {
+                    return;
+                  }
+                  state.chatModelSwitching = true;
+                  void (async () => {
+                    try {
+                      await patchSession(state, state.sessionKey, {
+                        cliProvider: provider,
+                        cliSessionId: nextBinding || null,
+                      });
+                    } finally {
+                      state.chatModelSwitching = false;
+                    }
+                  })();
+                },
                 showNewMessages: state.chatNewMessagesBelow && !state.chatManualRefreshInFlight,
                 onScrollToBottom: () => state.scrollToBottom(),
                 // Sidebar props for tool output viewing

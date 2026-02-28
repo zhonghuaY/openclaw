@@ -24,6 +24,18 @@ export type SessionOrigin = {
 
 export type SessionEntry = {
   /**
+   * Global model-session registry keyed by normalized model ref (provider/model).
+   * Stored on the `global` session entry and used by control UI model-session actions.
+   */
+  modelSessions?: Record<
+    string,
+    {
+      sessionId: string;
+      boundKey?: string;
+      updatedAt?: number;
+    }
+  >;
+  /**
    * Last delivered heartbeat payload (used to suppress duplicate heartbeat notifications).
    * Stored on the main session entry.
    */

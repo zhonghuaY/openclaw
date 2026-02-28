@@ -66,6 +66,12 @@ export async function patchSession(
     thinkingLevel?: string | null;
     verboseLevel?: string | null;
     reasoningLevel?: string | null;
+    model?: string | null;
+    modelSessionModel?: string;
+    modelSessionOp?: "start" | "bind" | "unbind" | "close";
+    modelSessionId?: string | null;
+    cliProvider?: string;
+    cliSessionId?: string | null;
   },
 ) {
   if (!state.client || !state.connected) {
@@ -86,6 +92,24 @@ export async function patchSession(
   }
   if ("reasoningLevel" in patch) {
     params.reasoningLevel = patch.reasoningLevel;
+  }
+  if ("model" in patch) {
+    params.model = patch.model;
+  }
+  if ("modelSessionModel" in patch) {
+    params.modelSessionModel = patch.modelSessionModel;
+  }
+  if ("modelSessionOp" in patch) {
+    params.modelSessionOp = patch.modelSessionOp;
+  }
+  if ("modelSessionId" in patch) {
+    params.modelSessionId = patch.modelSessionId;
+  }
+  if ("cliProvider" in patch) {
+    params.cliProvider = patch.cliProvider;
+  }
+  if ("cliSessionId" in patch) {
+    params.cliSessionId = patch.cliSessionId;
   }
   try {
     await state.client.request("sessions.patch", params);

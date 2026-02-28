@@ -463,6 +463,28 @@ export const sessionsHandlers: GatewayRequestHandlers = {
       const hadEntry = Boolean(store[primaryKey]);
       if (hadEntry) {
         delete store[primaryKey];
+        const globalEntry = store.global;
+        if (globalEntry?.modelSessions) {
+          const nextRegistry = { ...globalEntry.modelSessions };
+          let changed = false;
+          for (const [modelRef, modelSession] of Object.entries(nextRegistry)) {
+            if (!modelSession || modelSession.boundKey !== primaryKey) {
+              continue;
+            }
+            const updated = { ...modelSession };
+            delete updated.boundKey;
+            updated.updatedAt = Date.now();
+            nextRegistry[modelRef] = updated;
+            changed = true;
+          }
+          if (changed) {
+            store.global = {
+              ...globalEntry,
+              updatedAt: Date.now(),
+              modelSessions: nextRegistry,
+            };
+          }
+        }
       }
       return hadEntry;
     });

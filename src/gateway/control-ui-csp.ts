@@ -1,3 +1,5 @@
+const NOTE_X_FRAME_ORIGIN = "https://tdx-trading-view.myaddr.io:180";
+
 export function buildControlUiCspHeader(): string {
   // Control UI: block framing, block inline scripts, keep styles permissive
   // (UI uses a lot of inline style attributes in templates).
@@ -11,6 +13,6 @@ export function buildControlUiCspHeader(): string {
     "img-src 'self' data: https:",
     "font-src 'self' https:",
     "connect-src 'self' ws: wss:",
-    "frame-src 'self'",
+    `frame-src 'self' ${NOTE_X_FRAME_ORIGIN}`,
   ].join("; ");
 }

@@ -342,6 +342,37 @@
     flex: 1;
   }
 
+  .chat-compose .chat-compose__model-select {
+    height: 36px;
+    min-height: 36px;
+    max-height: 36px;
+    min-width: 0;
+    max-width: none;
+    flex: 1;
+  }
+
+  .chat-model-sessions__row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+
+  .chat-model-sessions__model,
+  .chat-model-sessions__status {
+    max-width: none;
+  }
+
+  .chat-model-sessions__actions {
+    justify-content: flex-end;
+  }
+
+  .chat-model-sessions__actions .btn {
+    height: 30px;
+    min-height: 30px;
+    padding: 0 8px;
+    font-size: 12px;
+  }
+
   /* Log stream */
   .log-stream {
     border-radius: var(--radius-md);

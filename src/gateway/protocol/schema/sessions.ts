@@ -78,6 +78,18 @@ export const SessionsPatchParamsSchema = Type.Object(
     groupActivation: Type.Optional(
       Type.Union([Type.Literal("mention"), Type.Literal("always"), Type.Null()]),
     ),
+    modelSessionModel: Type.Optional(NonEmptyString),
+    modelSessionOp: Type.Optional(
+      Type.Union([
+        Type.Literal("start"),
+        Type.Literal("bind"),
+        Type.Literal("unbind"),
+        Type.Literal("close"),
+      ]),
+    ),
+    modelSessionId: Type.Optional(Type.Union([NonEmptyString, Type.Null()])),
+    cliProvider: Type.Optional(NonEmptyString),
+    cliSessionId: Type.Optional(Type.Union([NonEmptyString, Type.Null()])),
     displayName: Type.Optional(Type.Union([NonEmptyString, Type.Null()])),
   },
   { additionalProperties: false },

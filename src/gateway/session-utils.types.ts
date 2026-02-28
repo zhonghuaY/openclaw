@@ -37,6 +37,9 @@ export type GatewaySessionRow = {
   responseUsage?: "on" | "off" | "tokens" | "full";
   modelProvider?: string;
   model?: string;
+  modelSessions?: Record<string, { sessionId: string; boundKey?: string; updatedAt?: number }>;
+  cliSessionIds?: Record<string, string>;
+  claudeCliSessionId?: string;
   contextTokens?: number;
   deliveryContext?: DeliveryContext;
   lastChannel?: SessionEntry["lastChannel"];
