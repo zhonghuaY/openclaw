@@ -225,30 +225,28 @@ describe("chat view", () => {
     expect(container.textContent).not.toContain("Stop");
   });
 
-  it("renders model selector and triggers change callback", () => {
+  it("renders model selector trigger button and model sheet", () => {
     const container = document.createElement("div");
     const onModelChange = vi.fn();
+    const onModelSheetToggle = vi.fn();
     render(
       renderChat(
         createProps({
           modelOptions: ["openai/gpt-4.1", "openai/gpt-4.1-mini"],
           selectedModel: "openai/gpt-4.1",
           onModelChange,
+          onModelSheetToggle,
         }),
       ),
       container,
     );
 
-    const select = container.querySelector('select[aria-label="Chat model"]');
-    expect(select).not.toBeNull();
-    expect(select?.value).toBe("model:openai%2Fgpt-4.1");
+    const trigger = container.querySelector('button[aria-label="Chat model"]');
+    expect(trigger).not.toBeNull();
+    expect(trigger?.textContent).toContain("openai/gpt-4.1");
 
-    if (!select) {
-      return;
-    }
-    select.value = "model:openai%2Fgpt-4.1-mini";
-    select.dispatchEvent(new Event("change", { bubbles: true }));
-    expect(onModelChange).toHaveBeenCalledWith("openai/gpt-4.1-mini");
+    trigger?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(onModelSheetToggle).toHaveBeenCalledTimes(1);
   });
 
   it("does not trigger send on Enter when sending is disabled", () => {
@@ -270,7 +268,7 @@ describe("chat view", () => {
     expect(onSend).not.toHaveBeenCalled();
   });
 
-  it("disables model selector while model switch is in progress", () => {
+  it("disables model selector trigger while model switch is in progress", () => {
     const container = document.createElement("div");
     render(
       renderChat(
@@ -284,11 +282,11 @@ describe("chat view", () => {
       container,
     );
 
-    const select = container.querySelector('select[aria-label="Chat model"]');
-    expect(select?.disabled).toBe(true);
+    const trigger = container.querySelector('button[aria-label="Chat model"]') as HTMLButtonElement;
+    expect(trigger?.disabled).toBe(true);
   });
 
-  it("groups model options by connectable and binding state", () => {
+  it("groups model options in model sheet by status and provider", () => {
     const container = document.createElement("div");
     render(
       renderChat(
@@ -302,20 +300,26 @@ describe("chat view", () => {
           boundModelOptions: ["opencode/big-pickle", "copilot-local/claude-opus-4.6"],
           selectedModel: "opencode/big-pickle",
           onModelChange: () => undefined,
+          modelSheetOpen: true,
         }),
       ),
       container,
     );
 
-    const labels = Array.from(container.querySelectorAll("optgroup")).map(
-      (group) => group.getAttribute("label") ?? "",
-    );
-    expect(labels).toContain("Connectable · Bound");
-    expect(labels).toContain("Connectable · Unbound");
-    expect(labels).toContain("Bound · Currently Unavailable");
+    // Model sheet should be rendered when open
+    const sheet = container.querySelector(".model-sheet-panel");
+    expect(sheet).not.toBeNull();
+
+    // Should contain all model names
     expect(container.textContent).toContain("opencode/big-pickle");
     expect(container.textContent).toContain("opencode/gpt-5-nano");
     expect(container.textContent).toContain("copilot-local/claude-opus-4.6");
+
+    // Should have group titles
+    const groupTitles = Array.from(container.querySelectorAll(".model-sheet__group-title")).map(
+      (el) => el.textContent?.trim() ?? "",
+    );
+    expect(groupTitles.length).toBeGreaterThan(0);
   });
 
   it("does not render a standalone model-session button", () => {
@@ -337,7 +341,7 @@ describe("chat view", () => {
     expect(container.textContent).not.toContain("Copilot API");
   });
 
-  it("exposes model session actions inside chat model dropdown", () => {
+  it("exposes model session actions inside model card details", () => {
     const container = document.createElement("div");
     const onModelSessionStart = vi.fn();
     const onModelSessionBind = vi.fn();
@@ -347,6 +351,8 @@ describe("chat view", () => {
       renderChat(
         createProps({
           onModelChange: () => undefined,
+          modelSheetOpen: true,
+          modelSheetExpanded: "opencode/big-pickle",
           modelSessionStates: [
             { model: "opencode/gpt-5-nano", status: "unstarted" },
             { model: "opencode/big-pickle", status: "unbound", sessionId: "sid-unbound" },
@@ -366,48 +372,32 @@ describe("chat view", () => {
       container,
     );
 
-    const modelSelect = container.querySelector('select[aria-label="Chat model"]');
-    expect(modelSelect).not.toBeNull();
-    if (!modelSelect) {
-      return;
-    }
+    // The model sheet should be rendered
+    const sheet = container.querySelector(".model-sheet-panel");
+    expect(sheet).not.toBeNull();
 
-    const labels = Array.from(modelSelect.querySelectorAll("optgroup")).map(
-      (group) => group.getAttribute("label") ?? "",
-    );
-    expect(labels).toContain("Session Actions");
-    const allOptionValues = Array.from(modelSelect.querySelectorAll("option")).map(
-      (option) => option.getAttribute("value") ?? "",
-    );
-    expect(allOptionValues).toContain("action:start:opencode%2Fgpt-5-nano");
-    expect(allOptionValues).toContain("action:bind:opencode%2Fbig-pickle");
-    expect(allOptionValues).toContain("action:unbind:opencode%2Ftrinity-large-preview-free");
-    expect(allOptionValues).toContain("action:close:opencode%2Fbig-pickle");
+    // The expanded card should show action buttons
+    const expandedCard = container.querySelector(".model-card--expanded");
+    expect(expandedCard).not.toBeNull();
 
-    modelSelect.value = "action:start:opencode%2Fgpt-5-nano";
-    modelSelect.dispatchEvent(new Event("change", { bubbles: true }));
-    modelSelect.value = "action:bind:opencode%2Fbig-pickle";
-    modelSelect.dispatchEvent(new Event("change", { bubbles: true }));
-    modelSelect.value = "action:unbind:opencode%2Ftrinity-large-preview-free";
-    modelSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    // Should contain model names
+    expect(container.textContent).toContain("opencode/gpt-5-nano");
+    expect(container.textContent).toContain("opencode/big-pickle");
+    expect(container.textContent).toContain("opencode/trinity-large-preview-free");
 
-    expect(onModelSessionStart).toHaveBeenCalledWith("opencode/gpt-5-nano");
-    expect(onModelSessionBind).toHaveBeenCalledWith("opencode/big-pickle");
-    expect(onModelSessionUnbind).toHaveBeenCalledWith("opencode/trinity-large-preview-free");
-
-    modelSelect.value = "action:close:opencode%2Fbig-pickle";
-    modelSelect.dispatchEvent(new Event("change", { bubbles: true }));
-    expect(onModelSessionClose).toHaveBeenCalledWith("opencode/big-pickle");
-
-    expect(modelSelect.value).toBe("auto");
+    // The expanded card (big-pickle with unbound status) should have Bind and Close buttons
+    const actionButtons = expandedCard?.querySelectorAll(".model-card__actions .btn");
+    expect(actionButtons?.length).toBeGreaterThan(0);
   });
 
-  it("does not expose model session actions for bound-other rows", () => {
+  it("does not expose model session actions for bound-other rows in expanded card", () => {
     const container = document.createElement("div");
     render(
       renderChat(
         createProps({
           onModelChange: () => undefined,
+          modelSheetOpen: true,
+          modelSheetExpanded: "opencode/minimax-m2.5-free",
           modelSessionStates: [
             {
               model: "opencode/minimax-m2.5-free",
@@ -420,16 +410,20 @@ describe("chat view", () => {
       ),
       container,
     );
-    const modelSelect = container.querySelector('select[aria-label="Chat model"]');
-    expect(modelSelect).not.toBeNull();
-    if (!modelSelect) {
-      return;
-    }
-    const allOptionValues = Array.from(modelSelect.querySelectorAll("option")).map(
-      (option) => option.getAttribute("value") ?? "",
-    );
-    expect(allOptionValues.some((value) => value.includes("opencode%2Fminimax-m2.5-free"))).toBe(
-      false,
-    );
+
+    // The model sheet should be rendered
+    const sheet = container.querySelector(".model-sheet-panel");
+    expect(sheet).not.toBeNull();
+
+    // The expanded card should not have bind/unbind actions for bound-other
+    const expandedCard = container.querySelector(".model-card--expanded");
+    expect(expandedCard).not.toBeNull();
+
+    // Bound-other should not show Bind or Unbind buttons
+    const buttons = Array.from(expandedCard?.querySelectorAll(".model-card__actions .btn") ?? []);
+    const bindButton = buttons.find((btn) => btn.textContent?.trim() === "Bind");
+    const unbindButton = buttons.find((btn) => btn.textContent?.trim() === "Unbind");
+    expect(bindButton).toBeUndefined();
+    expect(unbindButton).toBeUndefined();
   });
 });

@@ -1176,6 +1176,28 @@ export function renderApp(state: AppViewState) {
                 selectedModel: activeChatModel || null,
                 defaultModel: defaultChatModel || null,
                 modelSwitching: state.chatModelSwitching,
+                modelSheetOpen: state.modelSheetOpen,
+                modelSheetSearch: state.modelSheetSearch,
+                modelSheetExpanded: state.modelSheetExpanded,
+                onModelSheetToggle: () => {
+                  console.debug(
+                    "[model-sheet] toggle:",
+                    state.modelSheetOpen ? "closing" : "opening",
+                  );
+                  state.modelSheetOpen = !state.modelSheetOpen;
+                  if (!state.modelSheetOpen) {
+                    state.modelSheetSearch = "";
+                    state.modelSheetExpanded = null;
+                  }
+                },
+                onModelSheetSearchChange: (query: string) => {
+                  console.debug("[model-sheet] search:", query);
+                  state.modelSheetSearch = query;
+                },
+                onModelSheetExpandToggle: (model: string | null) => {
+                  console.debug("[model-sheet] expand toggle:", model);
+                  state.modelSheetExpanded = model;
+                },
                 focusMode: chatFocus,
                 onRefresh: () => {
                   state.resetToolStream();
@@ -1195,19 +1217,25 @@ export function renderApp(state: AppViewState) {
                 attachments: state.chatAttachments,
                 onAttachmentsChange: (next) => (state.chatAttachments = next),
                 onModelChange: (model) => {
+                  console.debug("[model-sheet] model change:", model, "session:", state.sessionKey);
                   if (state.chatModelSwitching) {
+                    console.debug("[model-sheet] model change blocked — switching in progress");
                     return;
                   }
                   state.chatModelSwitching = true;
                   void (async () => {
                     try {
                       await patchSession(state, state.sessionKey, { model });
+                      console.debug("[model-sheet] model change success:", model);
+                    } catch (err) {
+                      console.error("[model-sheet] model change failed:", model, err);
                     } finally {
                       state.chatModelSwitching = false;
                     }
                   })();
                 },
                 onModelSessionStart: (model) => {
+                  console.debug("[model-sheet] session start:", model);
                   if (state.chatModelSwitching) {
                     return;
                   }
@@ -1218,12 +1246,16 @@ export function renderApp(state: AppViewState) {
                         modelSessionModel: model,
                         modelSessionOp: "start",
                       });
+                      console.debug("[model-sheet] session start success:", model);
+                    } catch (err) {
+                      console.error("[model-sheet] session start failed:", model, err);
                     } finally {
                       state.chatModelSwitching = false;
                     }
                   })();
                 },
                 onModelSessionBind: (model) => {
+                  console.debug("[model-sheet] session bind:", model, "→", state.sessionKey);
                   if (state.chatModelSwitching) {
                     return;
                   }
@@ -1234,12 +1266,16 @@ export function renderApp(state: AppViewState) {
                         modelSessionModel: model,
                         modelSessionOp: "bind",
                       });
+                      console.debug("[model-sheet] session bind success:", model);
+                    } catch (err) {
+                      console.error("[model-sheet] session bind failed:", model, err);
                     } finally {
                       state.chatModelSwitching = false;
                     }
                   })();
                 },
                 onModelSessionUnbind: (model) => {
+                  console.debug("[model-sheet] session unbind:", model);
                   if (state.chatModelSwitching) {
                     return;
                   }
@@ -1250,12 +1286,16 @@ export function renderApp(state: AppViewState) {
                         modelSessionModel: model,
                         modelSessionOp: "unbind",
                       });
+                      console.debug("[model-sheet] session unbind success:", model);
+                    } catch (err) {
+                      console.error("[model-sheet] session unbind failed:", model, err);
                     } finally {
                       state.chatModelSwitching = false;
                     }
                   })();
                 },
                 onModelSessionClose: (model) => {
+                  console.debug("[model-sheet] session close:", model);
                   if (state.chatModelSwitching) {
                     return;
                   }
@@ -1266,6 +1306,9 @@ export function renderApp(state: AppViewState) {
                         modelSessionModel: model,
                         modelSessionOp: "close",
                       });
+                      console.debug("[model-sheet] session close success:", model);
+                    } catch (err) {
+                      console.error("[model-sheet] session close failed:", model, err);
                     } finally {
                       state.chatModelSwitching = false;
                     }

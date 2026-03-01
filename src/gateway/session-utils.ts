@@ -649,10 +649,28 @@ export function resolveSessionModelRef(
         defaultModel: DEFAULT_MODEL,
       });
 
-  // Prefer the last runtime model recorded on the session entry.
-  // This is the actual model used by the latest run and must win over defaults.
   let provider = resolved.provider;
   let model = resolved.model;
+
+  // 1. Prefer explicit per-session override (set by user model selection via
+  //    sessions.patch). This represents the user's intent and must win over
+  //    the last runtime model so the UI reflects the chosen model immediately.
+  const storedModelOverride = entry?.modelOverride?.trim();
+  if (storedModelOverride) {
+    const overrideProvider = entry?.providerOverride?.trim() || provider || DEFAULT_PROVIDER;
+    const parsedOverride = parseModelRef(storedModelOverride, overrideProvider);
+    if (parsedOverride) {
+      provider = parsedOverride.provider;
+      model = parsedOverride.model;
+    } else {
+      provider = overrideProvider;
+      model = storedModelOverride;
+    }
+    return { provider, model };
+  }
+
+  // 2. Fall back to the last runtime model recorded on the session entry.
+  //    This is the actual model used by the latest run.
   const runtimeModel = entry?.model?.trim();
   const runtimeProvider = entry?.modelProvider?.trim();
   if (runtimeModel) {
@@ -675,20 +693,7 @@ export function resolveSessionModelRef(
     return { provider, model };
   }
 
-  // Fall back to explicit per-session override (set at spawn/model-patch time),
-  // then finally to configured defaults.
-  const storedModelOverride = entry?.modelOverride?.trim();
-  if (storedModelOverride) {
-    const overrideProvider = entry?.providerOverride?.trim() || provider || DEFAULT_PROVIDER;
-    const parsedOverride = parseModelRef(storedModelOverride, overrideProvider);
-    if (parsedOverride) {
-      provider = parsedOverride.provider;
-      model = parsedOverride.model;
-    } else {
-      provider = overrideProvider;
-      model = storedModelOverride;
-    }
-  }
+  // 3. Fall back to configured defaults.
   return { provider, model };
 }
 

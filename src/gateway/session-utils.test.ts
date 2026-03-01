@@ -279,7 +279,7 @@ describe("gateway session utils", () => {
 });
 
 describe("resolveSessionModelRef", () => {
-  test("prefers runtime model/provider from session entry", () => {
+  test("prefers explicit override over runtime model/provider", () => {
     const cfg = {
       agents: {
         defaults: {
@@ -297,7 +297,7 @@ describe("resolveSessionModelRef", () => {
       providerOverride: "anthropic",
     });
 
-    expect(resolved).toEqual({ provider: "openai-codex", model: "gpt-5.3-codex" });
+    expect(resolved).toEqual({ provider: "anthropic", model: "claude-opus-4-6" });
   });
 
   test("preserves openrouter provider when model contains vendor prefix", () => {

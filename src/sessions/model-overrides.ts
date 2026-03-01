@@ -25,6 +25,15 @@ export function applyModelOverrideToSessionEntry(params: {
       delete entry.modelOverride;
       updated = true;
     }
+    // Clear runtime model so resolveSessionModelRef falls through to defaults
+    if (entry.model) {
+      delete entry.model;
+      updated = true;
+    }
+    if (entry.modelProvider) {
+      delete entry.modelProvider;
+      updated = true;
+    }
   } else {
     if (entry.providerOverride !== selection.provider) {
       entry.providerOverride = selection.provider;

@@ -7,6 +7,7 @@ import {
   renderStreamingGroup,
 } from "../chat/grouped-render.ts";
 import { normalizeMessage, normalizeRoleForGrouping } from "../chat/message-normalizer.ts";
+import { renderModelSheet } from "../components/model-sheet.ts";
 import { icons } from "../icons.ts";
 import { detectTextDirection } from "../text-direction.ts";
 import type { SessionsListResult } from "../types.ts";
@@ -38,13 +39,6 @@ export type ModelSessionState = {
   status: "unstarted" | "unbound" | "bound-self" | "bound-other";
 };
 
-type ModelSessionAction = "start" | "bind" | "unbind" | "close";
-type ParsedModelSelectValue =
-  | { kind: "auto" }
-  | { kind: "model"; model: string }
-  | { kind: "action"; action: ModelSessionAction; model: string }
-  | { kind: "invalid" };
-
 export type ChatProps = {
   sessionKey: string;
   onSessionKeyChange: (next: string) => void;
@@ -74,6 +68,13 @@ export type ChatProps = {
   selectedModel?: string | null;
   defaultModel?: string | null;
   modelSwitching?: boolean;
+  // Model sheet state
+  modelSheetOpen?: boolean;
+  modelSheetSearch?: string;
+  modelSheetExpanded?: string | null;
+  onModelSheetToggle?: () => void;
+  onModelSheetSearchChange?: (query: string) => void;
+  onModelSheetExpandToggle?: (model: string | null) => void;
   // Focus mode
   focusMode: boolean;
   // Sidebar state
@@ -263,105 +264,10 @@ function renderAttachmentPreview(props: ChatProps) {
   `;
 }
 
-function normalizeModelKey(value: string): string {
-  return value.trim().toLowerCase();
-}
-
 function uniqueSortedModels(values: string[]): string[] {
   return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean))).toSorted((a, b) =>
     a.localeCompare(b),
   );
-}
-
-function modelSessionActionsForStatus(status: ModelSessionState["status"]): ModelSessionAction[] {
-  if (status === "unstarted") {
-    return ["start"];
-  }
-  if (status === "unbound") {
-    return ["bind", "close"];
-  }
-  if (status === "bound-self") {
-    return ["unbind", "close"];
-  }
-  return [];
-}
-
-function modelSessionActionLabel(action: ModelSessionAction): string {
-  if (action === "start") {
-    return "Start";
-  }
-  if (action === "bind") {
-    return "Bind";
-  }
-  if (action === "unbind") {
-    return "Unbind";
-  }
-  return "Close";
-}
-
-function modelSessionStatusLabel(item: ModelSessionState): string {
-  if (item.status === "bound-self") {
-    return "Bound";
-  }
-  if (item.status === "bound-other") {
-    return `Bound: ${item.boundKey ?? "other session"}`;
-  }
-  if (item.status === "unbound") {
-    return "Started · Unbound";
-  }
-  return "Not started";
-}
-
-function encodeModelSelectValue(model: string): string {
-  return `model:${encodeURIComponent(model)}`;
-}
-
-function encodeModelActionSelectValue(action: ModelSessionAction, model: string): string {
-  return `action:${action}:${encodeURIComponent(model)}`;
-}
-
-function parseModelSelectValue(raw: string): ParsedModelSelectValue {
-  const decodePart = (value: string): string => {
-    try {
-      return decodeURIComponent(value);
-    } catch {
-      return "";
-    }
-  };
-  const value = raw.trim();
-  if (!value || value === "auto") {
-    return { kind: "auto" };
-  }
-  if (value.startsWith("model:")) {
-    const encodedModel = value.slice("model:".length);
-    const model = decodePart(encodedModel).trim();
-    if (!model) {
-      return { kind: "invalid" };
-    }
-    return { kind: "model", model };
-  }
-  if (value.startsWith("action:")) {
-    const rest = value.slice("action:".length);
-    const separator = rest.indexOf(":");
-    if (separator <= 0) {
-      return { kind: "invalid" };
-    }
-    const actionRaw = rest.slice(0, separator).trim();
-    const model = decodePart(rest.slice(separator + 1)).trim();
-    if (!model) {
-      return { kind: "invalid" };
-    }
-    if (
-      actionRaw !== "start" &&
-      actionRaw !== "bind" &&
-      actionRaw !== "unbind" &&
-      actionRaw !== "close"
-    ) {
-      return { kind: "invalid" };
-    }
-    return { kind: "action", action: actionRaw, model };
-  }
-  return { kind: "invalid" };
 }
 
 export function renderChat(props: ChatProps) {
@@ -384,35 +290,18 @@ export function renderChat(props: ChatProps) {
     : "Connect to the gateway to start chatting…";
   const currentModel = (props.selectedModel ?? activeSession?.model ?? "").trim();
   const defaultModel = (props.defaultModel ?? props.sessions?.defaults?.model ?? "").trim();
+  // Treat model matching default as "auto" (no explicit override)
+  const isAutoModel = !currentModel || currentModel === defaultModel;
   const modelOptions = uniqueSortedModels([
     ...(props.modelOptions ?? []),
     currentModel,
     defaultModel,
   ]);
   const connectableModelOptions = uniqueSortedModels(props.connectableModelOptions ?? []);
-  const hasConnectableCatalog = connectableModelOptions.length > 0;
   const boundModelOptions = uniqueSortedModels([...(props.boundModelOptions ?? []), currentModel]);
-  const connectableModelKeys = new Set(connectableModelOptions.map(normalizeModelKey));
-  const boundModelKeys = new Set(boundModelOptions.map(normalizeModelKey));
-  const connectableBoundModels = connectableModelOptions.filter((model) =>
-    boundModelKeys.has(normalizeModelKey(model)),
-  );
-  const connectableUnboundModels = connectableModelOptions.filter(
-    (model) => !boundModelKeys.has(normalizeModelKey(model)),
-  );
-  const boundUnavailableModels = boundModelOptions.filter(
-    (model) => !connectableModelKeys.has(normalizeModelKey(model)),
-  );
   const modelSessionStates = [...(props.modelSessionStates ?? [])].toSorted((a, b) =>
     a.model.localeCompare(b.model),
   );
-  const modelSessionActionOptions = modelSessionStates.flatMap((item) =>
-    modelSessionActionsForStatus(item.status).map((action) => ({
-      value: encodeModelActionSelectValue(action, item.model),
-      label: `${modelSessionActionLabel(action)} · ${item.model} (${modelSessionStatusLabel(item)})`,
-    })),
-  );
-  const currentModelSelectValue = currentModel ? encodeModelSelectValue(currentModel) : "auto";
 
   const splitRatio = props.splitRatio ?? 0.6;
   const sidebarOpen = Boolean(props.sidebarOpen && props.onCloseSidebar);
@@ -629,127 +518,37 @@ export function renderChat(props: ChatProps) {
             ${
               props.onModelChange
                 ? html`
-                    <select
-                      class="chat-compose__model-select"
+                    <button
+                      class="model-sheet-trigger"
+                      type="button"
                       aria-label="Chat model"
                       ?disabled=${!props.connected || props.sending || props.modelSwitching}
-                      @change=${(e: Event) => {
-                        const target = e.target as HTMLSelectElement;
-                        const parsed = parseModelSelectValue(target.value);
-                        if (parsed.kind === "auto") {
-                          props.onModelChange?.(null);
-                          return;
-                        }
-                        if (parsed.kind === "model") {
-                          props.onModelChange?.(parsed.model);
-                          return;
-                        }
-                        if (parsed.kind === "action") {
-                          target.value = currentModelSelectValue;
-                          if (parsed.action === "start") {
-                            props.onModelSessionStart?.(parsed.model);
-                            return;
-                          }
-                          if (parsed.action === "bind") {
-                            props.onModelSessionBind?.(parsed.model);
-                            return;
-                          }
-                          if (parsed.action === "unbind") {
-                            props.onModelSessionUnbind?.(parsed.model);
-                            return;
-                          }
-                          props.onModelSessionClose?.(parsed.model);
-                          return;
-                        }
-                        target.value = currentModelSelectValue;
-                      }}
+                      @click=${() => props.onModelSheetToggle?.()}
                     >
-                      <option value="auto" ?selected=${!currentModel}>
-                        ${defaultModel ? `Auto (${defaultModel})` : "Auto (default)"}
-                      </option>
-                      ${
-                        hasConnectableCatalog
-                          ? html`
-                              ${
-                                connectableBoundModels.length > 0
-                                  ? html`
-                                      <optgroup label="Connectable · Bound">
-                                        ${connectableBoundModels.map(
-                                          (model) => html`
-                                            <option
-                                              value=${encodeModelSelectValue(model)}
-                                              ?selected=${currentModel === model}
-                                            >
-                                              ${model}
-                                            </option>
-                                          `,
-                                        )}
-                                      </optgroup>
-                                    `
-                                  : nothing
-                              }
-                              ${
-                                connectableUnboundModels.length > 0
-                                  ? html`
-                                      <optgroup label="Connectable · Unbound">
-                                        ${connectableUnboundModels.map(
-                                          (model) => html`
-                                            <option
-                                              value=${encodeModelSelectValue(model)}
-                                              ?selected=${currentModel === model}
-                                            >
-                                              ${model}
-                                            </option>
-                                          `,
-                                        )}
-                                      </optgroup>
-                                    `
-                                  : nothing
-                              }
-                              ${
-                                boundUnavailableModels.length > 0
-                                  ? html`
-                                      <optgroup label="Bound · Currently Unavailable">
-                                        ${boundUnavailableModels.map(
-                                          (model) => html`
-                                            <option
-                                              value=${encodeModelSelectValue(model)}
-                                              ?selected=${currentModel === model}
-                                            >
-                                              ${model}
-                                            </option>
-                                          `,
-                                        )}
-                                      </optgroup>
-                                    `
-                                  : nothing
-                              }
-                            `
-                          : modelOptions.map(
-                              (model) => html`
-                                <option
-                                  value=${encodeModelSelectValue(model)}
-                                  ?selected=${currentModel === model}
-                                >
-                                  ${model}
-                                </option>
-                              `,
-                            )
-                      }
-                      ${
-                        modelSessionActionOptions.length > 0
-                          ? html`
-                              <optgroup label="Session Actions">
-                                ${modelSessionActionOptions.map(
-                                  (option) => html`
-                                    <option value=${option.value}>${option.label}</option>
-                                  `,
-                                )}
-                              </optgroup>
-                            `
-                          : nothing
-                      }
-                    </select>
+                      <span class="model-sheet-trigger__label">
+                        ${isAutoModel ? (defaultModel ? `Auto (${defaultModel})` : "Auto (default)") : currentModel}
+                      </span>
+                      <span class="model-sheet-trigger__arrow">▲</span>
+                    </button>
+                    ${renderModelSheet({
+                      open: props.modelSheetOpen ?? false,
+                      modelOptions,
+                      connectableModelOptions,
+                      boundModelOptions,
+                      modelSessionStates,
+                      selectedModel: isAutoModel ? null : currentModel,
+                      defaultModel: defaultModel || null,
+                      searchQuery: props.modelSheetSearch ?? "",
+                      expandedModel: props.modelSheetExpanded ?? null,
+                      onClose: () => props.onModelSheetToggle?.(),
+                      onSearchChange: (q) => props.onModelSheetSearchChange?.(q),
+                      onExpandToggle: (m) => props.onModelSheetExpandToggle?.(m),
+                      onModelChange: (model) => props.onModelChange?.(model),
+                      onModelSessionStart: props.onModelSessionStart,
+                      onModelSessionBind: props.onModelSessionBind,
+                      onModelSessionUnbind: props.onModelSessionUnbind,
+                      onModelSessionClose: props.onModelSessionClose,
+                    })}
                   `
                 : nothing
             }
