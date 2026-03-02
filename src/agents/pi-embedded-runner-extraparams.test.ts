@@ -182,6 +182,34 @@ describe("applyExtraParamsToAgent", () => {
     return payload;
   }
 
+  function runUserMutationCase(params: {
+    applyProvider: string;
+    applyModelId: string;
+    sessionKey?: string;
+    model: Model<"openai-completions"> | Model<"openai-responses"> | Model<"google-generative-ai">;
+    payload: Record<string, unknown>;
+  }): Record<string, unknown> {
+    const payload = { ...params.payload };
+    const baseStreamFn: StreamFn = (_model, _context, options) => {
+      options?.onPayload?.(payload);
+      return {} as ReturnType<StreamFn>;
+    };
+    const agent = { streamFn: baseStreamFn };
+    applyExtraParamsToAgent(
+      agent,
+      undefined,
+      params.applyProvider,
+      params.applyModelId,
+      undefined,
+      undefined,
+      undefined,
+      params.sessionKey,
+    );
+    const context: Context = { messages: [] };
+    void agent.streamFn?.(params.model, context, {});
+    return payload;
+  }
+
   function runAnthropicHeaderCase(params: {
     cfg: Record<string, unknown>;
     modelId: string;
@@ -723,4 +751,49 @@ describe("applyExtraParamsToAgent", () => {
       expect(run().store).toBe(false);
     },
   );
+
+  it("injects payload.user from sessionKey for OpenAI-compatible APIs", () => {
+    const payload = runUserMutationCase({
+      applyProvider: "openai",
+      applyModelId: "gpt-5",
+      sessionKey: "agent:main:demo",
+      model: {
+        api: "openai-completions",
+        provider: "openai",
+        id: "gpt-5",
+      } as Model<"openai-completions">,
+      payload: {},
+    });
+    expect(payload.user).toBe("agent:main:demo");
+  });
+
+  it("does not overwrite existing payload.user", () => {
+    const payload = runUserMutationCase({
+      applyProvider: "openai",
+      applyModelId: "gpt-5",
+      sessionKey: "agent:main:demo",
+      model: {
+        api: "openai-completions",
+        provider: "openai",
+        id: "gpt-5",
+      } as Model<"openai-completions">,
+      payload: { user: "custom-user-id" },
+    });
+    expect(payload.user).toBe("custom-user-id");
+  });
+
+  it("does not inject payload.user for non-OpenAI APIs", () => {
+    const payload = runUserMutationCase({
+      applyProvider: "atproxy",
+      applyModelId: "gemini-3.1-pro-high",
+      sessionKey: "agent:main:demo",
+      model: {
+        api: "google-generative-ai",
+        provider: "atproxy",
+        id: "gemini-3.1-pro-high",
+      } as Model<"google-generative-ai">,
+      payload: {},
+    });
+    expect(payload.user).toBeUndefined();
+  });
 });

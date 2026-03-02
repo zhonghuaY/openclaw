@@ -208,8 +208,16 @@ export async function resolveApiKeyForProvider(params: {
   }
 
   const normalized = normalizeProviderId(provider);
+
   if (authOverride === undefined && normalized === "amazon-bedrock") {
     return resolveAwsSdkAuthInfo();
+  }
+
+  if (supportsProviderPublicAccess(provider)) {
+    return {
+      source: "provider default (unauthenticated)",
+      mode: "api-key",
+    };
   }
 
   if (provider === "openai") {
@@ -234,6 +242,10 @@ export async function resolveApiKeyForProvider(params: {
 
 export type EnvApiKeyResult = { apiKey: string; source: string };
 export type ModelAuthMode = "api-key" | "oauth" | "token" | "mixed" | "aws-sdk" | "unknown";
+
+export function supportsProviderPublicAccess(provider: string): boolean {
+  return normalizeProviderId(provider) === "opencode";
+}
 
 export function resolveEnvApiKey(provider: string): EnvApiKeyResult | null {
   const normalized = normalizeProviderId(provider);

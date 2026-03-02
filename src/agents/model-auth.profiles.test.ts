@@ -187,6 +187,46 @@ describe("getApiKeyForModel", () => {
     );
   });
 
+  it("allows opencode provider without API key (public endpoint mode)", async () => {
+    await withEnvAsync(
+      {
+        OPENCODE_API_KEY: undefined,
+        OPENCODE_ZEN_API_KEY: undefined,
+        ZAI_API_KEY: undefined,
+        Z_AI_API_KEY: undefined,
+      },
+      async () => {
+        const resolved = await resolveApiKeyForProvider({
+          provider: "opencode",
+          store: { version: 1, profiles: {} },
+        });
+        expect(resolved.apiKey).toBeUndefined();
+        expect(resolved.mode).toBe("api-key");
+        expect(resolved.source).toContain("unauthenticated");
+      },
+    );
+  });
+
+  it("prefers unauthenticated opencode access even when zai key exists", async () => {
+    await withEnvAsync(
+      {
+        OPENCODE_API_KEY: undefined,
+        OPENCODE_ZEN_API_KEY: undefined,
+        ZAI_API_KEY: "zai-fallback-key",
+        Z_AI_API_KEY: undefined,
+      },
+      async () => {
+        const resolved = await resolveApiKeyForProvider({
+          provider: "opencode",
+          store: { version: 1, profiles: {} },
+        });
+        expect(resolved.apiKey).toBeUndefined();
+        expect(resolved.mode).toBe("api-key");
+        expect(resolved.source).toContain("unauthenticated");
+      },
+    );
+  });
+
   it("accepts legacy Z_AI_API_KEY for zai", async () => {
     await withEnvAsync(
       {

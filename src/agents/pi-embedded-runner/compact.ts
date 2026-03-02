@@ -32,7 +32,11 @@ import { listChannelSupportedActions, resolveChannelMessageToolHints } from "../
 import { formatUserTime, resolveUserTimeFormat, resolveUserTimezone } from "../date-time.js";
 import { DEFAULT_MODEL, DEFAULT_PROVIDER } from "../defaults.js";
 import { resolveOpenClawDocsPath } from "../docs-path.js";
-import { getApiKeyForModel, resolveModelAuthMode } from "../model-auth.js";
+import {
+  getApiKeyForModel,
+  resolveModelAuthMode,
+  supportsProviderPublicAccess,
+} from "../model-auth.js";
 import { ensureOpenClawModelsJson } from "../models-config.js";
 import { resolveOwnerDisplaySetting } from "../owner-display.js";
 import {
@@ -293,7 +297,7 @@ export async function compactEmbeddedPiSessionDirect(
     });
 
     if (!apiKeyInfo.apiKey) {
-      if (apiKeyInfo.mode !== "aws-sdk") {
+      if (apiKeyInfo.mode !== "aws-sdk" && !supportsProviderPublicAccess(model.provider)) {
         throw new Error(
           `No API key resolved for provider "${model.provider}" (auth mode: ${apiKeyInfo.mode}).`,
         );

@@ -88,6 +88,81 @@ describe("models-config", () => {
       }
     });
   });
+
+  it("normalizes public opencode models to placeholder auth and stable APIs", async () => {
+    await withTempHome(async () => {
+      const prevZai = process.env.ZAI_API_KEY;
+      const prevOpenCode = process.env.OPENCODE_API_KEY;
+      process.env.ZAI_API_KEY = "sk-zai-fallback-test";
+      delete process.env.OPENCODE_API_KEY;
+      try {
+        const cfg: OpenClawConfig = {
+          models: {
+            providers: {
+              opencode: {
+                baseUrl: "https://opencode.ai/zen/v1",
+                api: "openai-completions",
+                models: [
+                  {
+                    id: "big-pickle",
+                    name: "Big Pickle",
+                    reasoning: true,
+                    input: ["text"],
+                    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+                    contextWindow: 200000,
+                    maxTokens: 8192,
+                  },
+                  {
+                    id: "gpt-5-nano",
+                    name: "GPT-5 Nano",
+                    reasoning: true,
+                    input: ["text", "image"],
+                    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+                    contextWindow: 400000,
+                    maxTokens: 128000,
+                  },
+                  {
+                    id: "trinity-large-preview-free",
+                    name: "Trinity Large Preview",
+                    reasoning: false,
+                    input: ["text"],
+                    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+                    contextWindow: 131072,
+                    maxTokens: 131072,
+                  },
+                ],
+              },
+            },
+          },
+        };
+
+        await ensureOpenClawModelsJson(cfg);
+
+        const parsed = await readGeneratedModelsJson<{
+          providers: Record<
+            string,
+            { apiKey?: string; models?: Array<{ id: string; api?: string }> }
+          >;
+        }>();
+        expect(parsed.providers.opencode?.apiKey).toBe(" ");
+        expect(
+          parsed.providers.opencode?.models?.find((model) => model.id === "gpt-5-nano")?.api,
+        ).toBe("openai-responses");
+      } finally {
+        if (prevZai === undefined) {
+          delete process.env.ZAI_API_KEY;
+        } else {
+          process.env.ZAI_API_KEY = prevZai;
+        }
+        if (prevOpenCode === undefined) {
+          delete process.env.OPENCODE_API_KEY;
+        } else {
+          process.env.OPENCODE_API_KEY = prevOpenCode;
+        }
+      }
+    });
+  });
+
   it("merges providers by default", async () => {
     await withTempHome(async () => {
       const agentDir = resolveOpenClawAgentDir();

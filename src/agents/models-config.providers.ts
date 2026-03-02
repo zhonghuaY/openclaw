@@ -365,6 +365,54 @@ function resolveApiKeyFromProfiles(params: {
   return undefined;
 }
 
+function resolveApiKeyFallbackForProvider(params: {
+  provider: string;
+  store: ReturnType<typeof ensureAuthProfileStore>;
+}): string | undefined {
+  void params.store;
+  return undefined;
+}
+
+const OPENCODE_PUBLIC_API_KEY_PLACEHOLDER = " ";
+const OPENCODE_FREE_MODEL_IDS = new Set(["big-pickle", "gpt-5-nano"]);
+
+function isOpencodePublicModelId(id: string): boolean {
+  const normalized = id.trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+  return normalized.endsWith("-free") || OPENCODE_FREE_MODEL_IDS.has(normalized);
+}
+
+function normalizeOpencodePublicModels(provider: ProviderConfig): ProviderConfig {
+  if (!Array.isArray(provider.models) || provider.models.length === 0) {
+    return provider;
+  }
+
+  let mutated = false;
+  let hasPublicOnlyModels = true;
+  const models = provider.models.map((model) => {
+    const normalizedId = model.id.trim().toLowerCase();
+    const isPublic = isOpencodePublicModelId(normalizedId);
+    if (!isPublic) {
+      hasPublicOnlyModels = false;
+    }
+    if (normalizedId === "gpt-5-nano" && model.api !== "openai-responses") {
+      mutated = true;
+      return { ...model, api: "openai-responses" as const };
+    }
+    return model;
+  });
+
+  let normalized = mutated ? { ...provider, models } : provider;
+  if (hasPublicOnlyModels && normalized.apiKey !== OPENCODE_PUBLIC_API_KEY_PLACEHOLDER) {
+    normalized = { ...normalized, apiKey: OPENCODE_PUBLIC_API_KEY_PLACEHOLDER };
+    mutated = true;
+  }
+
+  return mutated ? normalized : provider;
+}
+
 export function normalizeGoogleModelId(id: string): string {
   if (id === "gemini-3-pro") {
     return "gemini-3-pro-preview";
@@ -435,7 +483,11 @@ export function normalizeProviders(params: {
           provider: normalizedKey,
           store: authStore,
         });
-        const apiKey = fromEnv ?? fromProfiles;
+        const fallbackApiKey = resolveApiKeyFallbackForProvider({
+          provider: normalizedKey,
+          store: authStore,
+        });
+        const apiKey = fromEnv ?? fromProfiles ?? fallbackApiKey;
         if (apiKey?.trim()) {
           mutated = true;
           normalizedProvider = { ...normalizedProvider, apiKey };
@@ -449,6 +501,14 @@ export function normalizeProviders(params: {
         mutated = true;
       }
       normalizedProvider = googleNormalized;
+    }
+
+    if (normalizedKey === "opencode") {
+      const opencodeNormalized = normalizeOpencodePublicModels(normalizedProvider);
+      if (opencodeNormalized !== normalizedProvider) {
+        mutated = true;
+      }
+      normalizedProvider = opencodeNormalized;
     }
 
     next[key] = normalizedProvider;
