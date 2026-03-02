@@ -74,6 +74,7 @@ export type AppViewState = {
   modelSheetOpen: boolean;
   modelSheetSearch: string;
   modelSheetExpanded: string | null;
+  sessionSheetOpen: boolean;
   chatMessage: string;
   chatAttachments: ChatAttachment[];
   chatMessages: unknown[];

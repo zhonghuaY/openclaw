@@ -281,6 +281,7 @@ function createOpenAiSessionUserWrapper(
 function createCopilotProxySessionWrapper(
   baseStreamFn: StreamFn | undefined,
   sessionKey: string,
+  bindingOverride?: string,
 ): StreamFn {
   const underlying = baseStreamFn ?? streamSimple;
   const sanitized = sessionKey
@@ -288,15 +289,16 @@ function createCopilotProxySessionWrapper(
     .replace(/[^a-zA-Z0-9_-]/g, "_")
     .replace(/^_+|_+$/g, "")
     .slice(0, 64);
-  if (!sanitized) {
+  if (!sanitized && !bindingOverride?.trim()) {
     return underlying;
   }
   return (model, context, options) => {
+    const effectiveSessionId = bindingOverride?.trim() || sanitized;
     return underlying(model, context, {
       ...options,
       headers: {
         ...options?.headers,
-        "X-Session-Id": sanitized,
+        "X-Session-Id": effectiveSessionId,
       },
     });
   };

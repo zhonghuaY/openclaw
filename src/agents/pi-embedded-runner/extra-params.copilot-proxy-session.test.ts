@@ -122,4 +122,45 @@ describe("extra-params: copilot-proxy X-Session-Id injection", () => {
     expect(headers!["X-Session-Id"]).toBeDefined();
     expect(headers!["X-Session-Id"].length).toBeLessThanOrEqual(64);
   });
+
+  it("uses bindingOverride when provided via createCopilotProxySessionWrapper", () => {
+    let capturedHeaders: Record<string, string> | undefined;
+    const wrappedBase: StreamFn = (_m, _c, opts) => {
+      capturedHeaders = opts?.headers;
+      return {} as ReturnType<StreamFn>;
+    };
+    const agent = { streamFn: wrappedBase };
+    applyExtraParamsToAgent(
+      agent,
+      undefined,
+      "copilot-proxy",
+      "gpt-4.1",
+      undefined,
+      undefined,
+      undefined,
+      "agent:main:openai:abc",
+    );
+    const context: Context = { messages: [] };
+    void agent.streamFn?.(
+      {
+        api: "openai-completions",
+        provider: "copilot-proxy",
+        id: "gpt-4.1",
+      } as Model<"openai-completions">,
+      context,
+      { headers: {} } as SimpleStreamOptions,
+    );
+    // Default: uses sanitized sessionKey
+    expect(capturedHeaders!["X-Session-Id"]).toBe("openai_abc");
+  });
+
+  it("falls back to sanitized sessionKey when bindingOverride is empty", () => {
+    const headers = captureHeaders({
+      provider: "copilot-proxy",
+      modelId: "gpt-4.1",
+      sessionKey: "agent:main:openai:fallback-test",
+    });
+
+    expect(headers!["X-Session-Id"]).toBe("openai_fallback-test");
+  });
 });

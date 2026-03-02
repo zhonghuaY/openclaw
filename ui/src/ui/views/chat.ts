@@ -8,6 +8,8 @@ import {
 } from "../chat/grouped-render.ts";
 import { normalizeMessage, normalizeRoleForGrouping } from "../chat/message-normalizer.ts";
 import { renderModelSheet } from "../components/model-sheet.ts";
+import { renderSessionSheet } from "../components/session-sheet.ts";
+import type { SessionSheetProps } from "../components/session-sheet.ts";
 import { icons } from "../icons.ts";
 import { detectTextDirection } from "../text-direction.ts";
 import type { SessionsListResult } from "../types.ts";
@@ -72,6 +74,10 @@ export type ChatProps = {
   modelSheetOpen?: boolean;
   modelSheetSearch?: string;
   modelSheetExpanded?: string | null;
+  // Session sheet state
+  sessionSheetOpen?: boolean;
+  sessionSheetProps?: Omit<SessionSheetProps, "open" | "onClose"> | null;
+  onSessionSheetToggle?: () => void;
   onModelSheetToggle?: () => void;
   onModelSheetSearchChange?: (query: string) => void;
   onModelSheetExpandToggle?: (model: string | null) => void;
@@ -516,6 +522,20 @@ export function renderChat(props: ChatProps) {
               ${canAbort ? "Stop" : "New session"}
             </button>
             ${
+              props.onSessionSheetToggle
+                ? html`
+                  <button
+                    class="btn"
+                    type="button"
+                    ?disabled=${!props.connected}
+                    @click=${() => props.onSessionSheetToggle?.()}
+                  >
+                    ⚡
+                  </button>
+                `
+                : nothing
+            }
+            ${
               props.onModelChange
                 ? html`
                     <button
@@ -549,6 +569,15 @@ export function renderChat(props: ChatProps) {
                       onModelSessionUnbind: props.onModelSessionUnbind,
                       onModelSessionClose: props.onModelSessionClose,
                     })}
+                    ${
+                      props.sessionSheetProps
+                        ? renderSessionSheet({
+                            open: props.sessionSheetOpen ?? false,
+                            ...props.sessionSheetProps,
+                            onClose: () => props.onSessionSheetToggle?.(),
+                          })
+                        : nothing
+                    }
                   `
                 : nothing
             }

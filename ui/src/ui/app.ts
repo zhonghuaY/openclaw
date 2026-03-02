@@ -143,6 +143,7 @@ export class OpenClawApp extends LitElement {
   @state() modelSheetOpen = false;
   @state() modelSheetSearch = "";
   @state() modelSheetExpanded: string | null = null;
+  @state() sessionSheetOpen = false;
   @state() chatMessage = "";
   @state() chatMessages: unknown[] = [];
   @state() chatToolMessages: unknown[] = [];

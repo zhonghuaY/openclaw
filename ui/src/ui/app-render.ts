@@ -59,6 +59,10 @@ import {
 import { loadLogs } from "./controllers/logs.ts";
 import { loadNodes } from "./controllers/nodes.ts";
 import { loadPresence } from "./controllers/presence.ts";
+import {
+  createSessionSheetController,
+  type SessionSheetController,
+} from "./controllers/session-sheet.ts";
 import { deleteSessionAndRefresh, loadSessions, patchSession } from "./controllers/sessions.ts";
 import {
   installSkill,
@@ -71,6 +75,11 @@ import { buildExternalLinkRel, EXTERNAL_LINK_TARGET } from "./external-link.ts";
 import { icons } from "./icons.ts";
 import { formatModelRef } from "./model-ref.ts";
 import { normalizeBasePath, TAB_GROUPS, subtitleForTab, titleForTab } from "./navigation.ts";
+import {
+  findSessionRowByEquivalentKey,
+  sessionKeysEquivalent,
+  type SessionKeyDefaults,
+} from "./session-key-alias.ts";
 import { renderAgents } from "./views/agents.ts";
 import { renderChannels } from "./views/channels.ts";
 import { renderChat } from "./views/chat.ts";
@@ -91,6 +100,14 @@ const AVATAR_HTTP_RE = /^https?:\/\//i;
 const NOTE_X_URL_STORAGE_KEY = "openclaw.control.notex.url";
 const DEFAULT_NOTE_X_URL = "https://tdx-trading-view.myaddr.io:180/";
 const CRON_THINKING_SUGGESTIONS = ["off", "minimal", "low", "medium", "high"];
+
+let _sessionSheetCtrl: SessionSheetController | null = null;
+function getSessionSheetController(onUpdate: () => void): SessionSheetController {
+  if (!_sessionSheetCtrl) {
+    _sessionSheetCtrl = createSessionSheetController(onUpdate);
+  }
+  return _sessionSheetCtrl;
+}
 const CRON_TIMEZONE_SUGGESTIONS = [
   "UTC",
   "America/Los_Angeles",
@@ -101,6 +118,10 @@ const CRON_TIMEZONE_SUGGESTIONS = [
   "Europe/Berlin",
   "Asia/Tokyo",
 ];
+
+type SessionDefaultsSnapshot = SessionKeyDefaults & {
+  scope?: string;
+};
 
 function isHttpUrl(value: string): boolean {
   return /^https?:\/\//i.test(value.trim());
@@ -208,9 +229,15 @@ export function renderApp(state: AppViewState) {
   const isChat = state.tab === "chat";
   const chatFocus = isChat && (state.settings.chatFocusMode || state.onboarding);
   const showThinking = state.onboarding ? false : state.settings.chatShowThinking;
-  const activeChatSession = state.sessionsResult?.sessions?.find(
-    (row) => row.key === state.sessionKey,
+  const sessionDefaults =
+    (state.hello?.snapshot as { sessionDefaults?: SessionDefaultsSnapshot } | undefined)
+      ?.sessionDefaults ?? undefined;
+  const activeChatSession = findSessionRowByEquivalentKey(
+    state.sessionsResult?.sessions,
+    state.sessionKey,
+    sessionDefaults,
   );
+  const activeChatSessionKey = activeChatSession?.key ?? state.sessionKey;
   const activeChatModel = formatModelRef(
     activeChatSession?.modelProvider,
     activeChatSession?.model,
@@ -262,7 +289,7 @@ export function renderApp(state: AppViewState) {
         status: "unbound" as const,
       };
     }
-    if (entry.boundKey === state.sessionKey) {
+    if (sessionKeysEquivalent(entry.boundKey, state.sessionKey, sessionDefaults)) {
       return {
         model,
         sessionId: entry.sessionId,
@@ -1118,15 +1145,9 @@ export function renderApp(state: AppViewState) {
             : nothing
         }
 
-        ${
-          state.tab === "notex"
-            ? html`
-                <div style="width: 100%; height: calc(100vh - var(--shell-topbar-height, 56px)); overflow: hidden">
-                  <iframe src=${noteXUrl} style="width: 100%; height: 100%; border: none" title="NoteX"></iframe>
-                </div>
-              `
-            : nothing
-        }
+        <div style="width: 100%; height: calc(100vh - var(--shell-topbar-height, 56px)); overflow: hidden; display: ${state.tab === "notex" ? "block" : "none"}">
+          <iframe src=${noteXUrl} style="width: 100%; height: 100%; border: none" title="NoteX"></iframe>
+        </div>
 
         ${
           state.tab === "chat"
@@ -1179,6 +1200,16 @@ export function renderApp(state: AppViewState) {
                 modelSheetOpen: state.modelSheetOpen,
                 modelSheetSearch: state.modelSheetSearch,
                 modelSheetExpanded: state.modelSheetExpanded,
+                sessionSheetOpen: state.sessionSheetOpen,
+                sessionSheetProps: getSessionSheetController(() => state.requestUpdate()).getProps(
+                  state.sessionKey,
+                  chatModelOptions,
+                ),
+                onSessionSheetToggle: () => {
+                  const ctrl = getSessionSheetController(() => state.requestUpdate());
+                  ctrl.toggle();
+                  state.sessionSheetOpen = ctrl.state.open;
+                },
                 onModelSheetToggle: () => {
                   console.debug(
                     "[model-sheet] toggle:",
@@ -1217,7 +1248,14 @@ export function renderApp(state: AppViewState) {
                 attachments: state.chatAttachments,
                 onAttachmentsChange: (next) => (state.chatAttachments = next),
                 onModelChange: (model) => {
-                  console.debug("[model-sheet] model change:", model, "session:", state.sessionKey);
+                  console.debug(
+                    "[model-sheet] model change:",
+                    model,
+                    "session:",
+                    state.sessionKey,
+                    "patchKey:",
+                    activeChatSessionKey,
+                  );
                   if (state.chatModelSwitching) {
                     console.debug("[model-sheet] model change blocked — switching in progress");
                     return;
@@ -1225,7 +1263,7 @@ export function renderApp(state: AppViewState) {
                   state.chatModelSwitching = true;
                   void (async () => {
                     try {
-                      await patchSession(state, state.sessionKey, { model });
+                      await patchSession(state, activeChatSessionKey, { model });
                       console.debug("[model-sheet] model change success:", model);
                     } catch (err) {
                       console.error("[model-sheet] model change failed:", model, err);
@@ -1255,14 +1293,21 @@ export function renderApp(state: AppViewState) {
                   })();
                 },
                 onModelSessionBind: (model) => {
-                  console.debug("[model-sheet] session bind:", model, "→", state.sessionKey);
+                  console.debug(
+                    "[model-sheet] session bind:",
+                    model,
+                    "→",
+                    state.sessionKey,
+                    "patchKey:",
+                    activeChatSessionKey,
+                  );
                   if (state.chatModelSwitching) {
                     return;
                   }
                   state.chatModelSwitching = true;
                   void (async () => {
                     try {
-                      await patchSession(state, state.sessionKey, {
+                      await patchSession(state, activeChatSessionKey, {
                         modelSessionModel: model,
                         modelSessionOp: "bind",
                       });
@@ -1282,7 +1327,7 @@ export function renderApp(state: AppViewState) {
                   state.chatModelSwitching = true;
                   void (async () => {
                     try {
-                      await patchSession(state, state.sessionKey, {
+                      await patchSession(state, activeChatSessionKey, {
                         modelSessionModel: model,
                         modelSessionOp: "unbind",
                       });
@@ -1302,7 +1347,7 @@ export function renderApp(state: AppViewState) {
                   state.chatModelSwitching = true;
                   void (async () => {
                     try {
-                      await patchSession(state, state.sessionKey, {
+                      await patchSession(state, activeChatSessionKey, {
                         modelSessionModel: model,
                         modelSessionOp: "close",
                       });
