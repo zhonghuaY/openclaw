@@ -15,6 +15,11 @@ const ANTHROPIC_1M_MODEL_PREFIXES = ["claude-opus-4", "claude-sonnet-4"] as cons
 // Codex responses (chatgpt.com/backend-api/codex/responses) require `store=false`.
 const OPENAI_RESPONSES_APIS = new Set(["openai-responses"]);
 const OPENAI_RESPONSES_PROVIDERS = new Set(["openai"]);
+const OPENAI_STYLE_APIS = new Set([
+  "openai-completions",
+  "openai-responses",
+  "openai-codex-responses",
+]);
 
 /**
  * Resolve provider-specific extra params from model config.
@@ -223,6 +228,75 @@ function createOpenAIResponsesStoreWrapper(baseStreamFn: StreamFn | undefined): 
           (payload as { store?: unknown }).store = true;
         }
         originalOnPayload?.(payload);
+      },
+    });
+  };
+}
+
+function normalizeSessionUser(raw: string | undefined): string | null {
+  if (typeof raw !== "string") {
+    return null;
+  }
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    return null;
+  }
+  return trimmed.slice(0, 128);
+}
+
+function createOpenAiSessionUserWrapper(
+  baseStreamFn: StreamFn | undefined,
+  sessionKey?: string,
+): StreamFn {
+  const underlying = baseStreamFn ?? streamSimple;
+  const user = normalizeSessionUser(sessionKey);
+  if (!user) {
+    return underlying;
+  }
+  return (model, context, options) => {
+    if (!OPENAI_STYLE_APIS.has(model.api)) {
+      return underlying(model, context, options);
+    }
+    const onPayload = options?.onPayload;
+    return underlying(model, context, {
+      ...options,
+      onPayload: (payload) => {
+        if (payload && typeof payload === "object") {
+          const payloadObj = payload as Record<string, unknown>;
+          const existingUser = payloadObj.user;
+          if (typeof existingUser !== "string" || !existingUser.trim()) {
+            payloadObj.user = user;
+          }
+        }
+        onPayload?.(payload);
+      },
+    });
+  };
+}
+
+/**
+ * Create a streamFn wrapper that injects X-Session-Id header for copilot-proxy provider.
+ * This enables 1:1 mapping between OpenClaw conversations and gateway CLI instances.
+ */
+function createCopilotProxySessionWrapper(
+  baseStreamFn: StreamFn | undefined,
+  sessionKey: string,
+): StreamFn {
+  const underlying = baseStreamFn ?? streamSimple;
+  const sanitized = sessionKey
+    .replace(/^agent:[^:]+:/, "")
+    .replace(/[^a-zA-Z0-9_-]/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 64);
+  if (!sanitized) {
+    return underlying;
+  }
+  return (model, context, options) => {
+    return underlying(model, context, {
+      ...options,
+      headers: {
+        ...options?.headers,
+        "X-Session-Id": sanitized,
       },
     });
   };
@@ -639,6 +713,7 @@ export function applyExtraParamsToAgent(
   extraParamsOverride?: Record<string, unknown>,
   thinkingLevel?: ThinkLevel,
   agentId?: string,
+  sessionKey?: string,
 ): void {
   const extraParams = resolveExtraParams({
     cfg,
@@ -707,8 +782,16 @@ export function applyExtraParamsToAgent(
   // upstream model-ID heuristics for Gemini 3.1 variants.
   agent.streamFn = createGoogleThinkingPayloadWrapper(agent.streamFn, thinkingLevel);
 
+  // Inject X-Session-Id header for copilot-proxy provider so each OpenClaw
+  // conversation binds to its own gateway CLI instance.
+  if (provider === "copilot-proxy" && sessionKey?.trim()) {
+    log.debug(`injecting X-Session-Id for ${provider}/${modelId}`);
+    agent.streamFn = createCopilotProxySessionWrapper(agent.streamFn, sessionKey);
+  }
+
   // Work around upstream pi-ai hardcoding `store: false` for Responses API.
   // Force `store=true` for direct OpenAI/OpenAI Codex providers so multi-turn
   // server-side conversation state is preserved.
+  agent.streamFn = createOpenAiSessionUserWrapper(agent.streamFn, sessionKey);
   agent.streamFn = createOpenAIResponsesStoreWrapper(agent.streamFn);
 }
