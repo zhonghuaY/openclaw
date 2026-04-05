@@ -1,0 +1,60 @@
+{
+  "id": "agent-gateway",
+  "enabledByDefault": true,
+  "providers": ["cursor-local", "cursor-remote"],
+  "providerAuthEnvVars": {
+    "cursor-local": ["AGENT_GATEWAY_LOCAL_URL"],
+    "cursor-remote": ["AGENT_GATEWAY_REMOTE_URL"]
+  },
+  "providerAuthChoices": [
+    {
+      "provider": "cursor-local",
+      "method": "local",
+      "choiceId": "agent-gateway-local",
+      "choiceLabel": "Agent Gateway (Local)",
+      "choiceHint": "Local agent-api-gateway at localhost",
+      "groupId": "agent-gateway",
+      "groupLabel": "Agent Gateway",
+      "groupHint": "Cursor/Copilot PTY gateway with dynamic model discovery"
+    },
+    {
+      "provider": "cursor-remote",
+      "method": "remote",
+      "choiceId": "agent-gateway-remote",
+      "choiceLabel": "Agent Gateway (Remote)",
+      "choiceHint": "Remote agent-api-gateway instance",
+      "groupId": "agent-gateway",
+      "groupLabel": "Agent Gateway",
+      "groupHint": "Cursor/Copilot PTY gateway with dynamic model discovery"
+    }
+  ],
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "localUrl": {
+        "type": "string"
+      },
+      "remoteUrl": {
+        "type": "string"
+      },
+      "discoveryIntervalMs": {
+        "type": "number"
+      }
+    }
+  },
+  "uiHints": {
+    "localUrl": {
+      "label": "Local Gateway URL",
+      "help": "Base URL for the local agent-api-gateway (default: http://localhost:3000)"
+    },
+    "remoteUrl": {
+      "label": "Remote Gateway URL",
+      "help": "Base URL for the remote agent-api-gateway"
+    },
+    "discoveryIntervalMs": {
+      "label": "Discovery Interval (ms)",
+      "help": "How often to re-discover models from the gateway (default: 30000)"
+    }
+  }
+}

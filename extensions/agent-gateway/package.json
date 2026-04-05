@@ -1,0 +1,12 @@
+{
+  "name": "@openclaw/agent-gateway-provider",
+  "version": "2026.4.4",
+  "private": true,
+  "description": "OpenClaw Agent API Gateway provider plugin — dynamic model discovery from local and remote agent-api-gateway instances",
+  "type": "module",
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}
